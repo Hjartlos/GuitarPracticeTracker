@@ -1,0 +1,32 @@
+package com.example.gpt.data
+
+import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
+
+private val Context.dataStore by preferencesDataStore("settings")
+
+class SettingsRepository(private val context: Context) {
+
+    private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
+    private val WEEKLY_GOAL_KEY = intPreferencesKey("weekly_goal")
+
+    suspend fun setDarkMode(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[DARK_MODE_KEY] = enabled }
+    }
+
+    suspend fun isDarkMode(): Boolean {
+        return context.dataStore.data.first()[DARK_MODE_KEY] ?: true
+    }
+
+    suspend fun setWeeklyGoal(hours: Int) {
+        context.dataStore.edit { prefs -> prefs[WEEKLY_GOAL_KEY] = hours }
+    }
+
+    suspend fun getWeeklyGoal(): Int {
+        return context.dataStore.data.first()[WEEKLY_GOAL_KEY] ?: 5
+    }
+}
