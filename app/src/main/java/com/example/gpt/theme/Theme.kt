@@ -15,27 +15,30 @@ private val DarkColorScheme = darkColorScheme(
     primary = MetalRed,
     secondary = MetalRedDark,
     tertiary = MetalAccentGreen,
-    background = MetalBlack,
+    background = MetalBackground,
     surface = MetalSurface,
+    surfaceVariant = MetalSurfaceVariant,
     onBackground = MetalTextPrimary,
     onSurface = MetalTextPrimary,
+    onSurfaceVariant = MetalTextSecondary,
     onPrimary = MetalTextPrimary
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = MetalRed,       // Czerwony zostaje jako akcent marki
+    primary = MetalRed,
     secondary = MetalRedDark,
     tertiary = MetalAccentGreen,
     background = LightBackground,
     surface = LightSurface,
+    surfaceVariant = LightSurfaceVariant,
     onBackground = LightTextPrimary,
     onSurface = LightTextPrimary,
-    onPrimary = MetalTextPrimary // Tekst na czerwonym przycisku nadal biały
+    onSurfaceVariant = LightTextSecondary,
+    onPrimary = MetalTextPrimary
 )
 
 @Composable
 fun GPTTheme(
-    // Domyślnie bierzemy ustawienie systemowe, ale SettingsScreen może to nadpisać
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
@@ -46,7 +49,6 @@ fun GPTTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
-            // Ikony paska stanu: jasne dla ciemnego motywu, ciemne dla jasnego
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }

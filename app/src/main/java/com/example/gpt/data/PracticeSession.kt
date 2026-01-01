@@ -11,8 +11,8 @@ data class PracticeSession(
     val timestamp: Long,
     val notes: String = "",
     val tuning: String = "Standard",
-
-    // NOWE POLA DO ANALIZY:
-    val avgBpm: Int = 0,            // Wykryte tempo
-    val consistencyScore: Int = 0   // Jak równo grałeś (0-100%)
+    val avgBpm: Int = 0,
+    val consistencyScore: Int = 0,
+    val timeSignature: String = "4/4",
+    val audioPath: String? = null
 )

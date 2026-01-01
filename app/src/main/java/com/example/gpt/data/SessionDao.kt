@@ -10,11 +10,9 @@ interface SessionDao {
     @Insert
     suspend fun insertSession(session: PracticeSession)
 
-    // Pobiera całą historię (najnowsze na górze)
     @Query("SELECT * FROM sessions ORDER BY timestamp DESC")
     fun getAllSessions(): Flow<List<PracticeSession>>
 
-    // Pobiera sumę minut z ostatnich X dni (do statystyk)
     @Query("SELECT * FROM sessions WHERE timestamp >= :startTime")
     fun getSessionsFromDate(startTime: Long): Flow<List<PracticeSession>>
 

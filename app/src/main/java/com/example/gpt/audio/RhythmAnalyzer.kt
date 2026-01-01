@@ -4,78 +4,98 @@ import be.tarsos.dsp.AudioDispatcher
 import be.tarsos.dsp.io.TarsosDSPAudioFormat
 import be.tarsos.dsp.io.UniversalAudioInputStream
 import be.tarsos.dsp.onsets.ComplexOnsetDetector
-import be.tarsos.dsp.onsets.OnsetHandler
 import java.io.File
 import java.io.FileInputStream
 import kotlin.math.abs
 
 data class AnalysisResult(
     val bpm: Int,
-    val consistency: Int // 0-100%
+    val consistency: Int
 )
 
 class RhythmAnalyzer {
-
-    fun analyze(audioFile: File): AnalysisResult {
+    fun analyze(audioFile: File, targetBpm: Int = 0, threshold: Float = 0.15f, errorMargin: Float = 0.3f): AnalysisResult {
         if (!audioFile.exists() || audioFile.length() < 1000) {
-            return AnalysisResult(0, 0)
+            return if (targetBpm > 0) AnalysisResult(targetBpm, 0) else AnalysisResult(0, 0)
         }
 
-        val onsets = mutableListOf<Double>() // Czas wystąpienia uderzeń w sekundach
-
-        // 1. Konfiguracja detektora Onsetów (ComplexOnsetDetector jest dobry do muzyki)
-        // 512/256 to mniejszy bufor dla lepszej precyzji czasowej
+        val onsets = mutableListOf<Double>()
         val dispatcher = AudioDispatcher(UniversalAudioInputStream(FileInputStream(audioFile), run {
             TarsosDSPAudioFormat(44100f, 16, 1, true, false)
-        }), 512, 256)
+        }), 1024, 512)
 
-        val onsetHandler = OnsetHandler { time, _ ->
-            onsets.add(time)
-        }
+        val onsetDetector = ComplexOnsetDetector(1024, threshold.toDouble())
 
-        val onsetDetector = ComplexOnsetDetector(512, 0.3) // 0.3 to próg czułości (eksperymentalnie)
-        onsetDetector.setHandler(onsetHandler)
+        onsetDetector.setHandler { time, _ -> onsets.add(time) }
         dispatcher.addAudioProcessor(onsetDetector)
+        dispatcher.run()
 
-        dispatcher.run() // To uruchomi się w bieżącym wątku i zablokuje go do końca pliku (szybko)
-
-        // 2. Obliczenia BPM
-        return calculateRhythm(onsets)
+        return calculateRhythm(onsets, targetBpm, errorMargin)
     }
 
-    private fun calculateRhythm(onsets: List<Double>): AnalysisResult {
-        if (onsets.size < 4) return AnalysisResult(0, 0) // Za mało uderzeń
-
-        // Obliczamy odstępy między uderzeniami (Inter-Onset Intervals)
-        val intervals = mutableListOf<Double>()
-        for (i in 0 until onsets.size - 1) {
-            val diff = onsets[i+1] - onsets[i]
-            if (diff > 0.1) { // Ignorujemy bardzo szybkie "duszki" (szumy poniżej 100ms)
-                intervals.add(diff)
+    private fun calculateRhythm(onsets: List<Double>, targetBpm: Int, errorMargin: Float): AnalysisResult {
+        val filteredOnsets = mutableListOf<Double>()
+        if (onsets.isNotEmpty()) {
+            filteredOnsets.add(onsets[0])
+            for (i in 1 until onsets.size) {
+                if (onsets[i] - onsets[i-1] > 0.08) {
+                    filteredOnsets.add(onsets[i])
+                }
             }
         }
 
-        if (intervals.isEmpty()) return AnalysisResult(0, 0)
-
-        // Średni odstęp czasu
-        val averageInterval = intervals.average()
-
-        // BPM = 60 sekund / średni odstęp
-        val bpm = (60.0 / averageInterval).toInt()
-
-        // Obliczamy spójność (Consistency) na podstawie wariancji
-        // Im mniejsze odchylenia od średniej, tym równiejsza gra
-        var totalDeviation = 0.0
-        for (interval in intervals) {
-            totalDeviation += abs(interval - averageInterval)
+        if (filteredOnsets.size < 4) {
+            return if (targetBpm > 0) AnalysisResult(targetBpm, 0) else AnalysisResult(0, 0)
         }
-        val avgDeviation = totalDeviation / intervals.size
 
-        // Heurystyka: Jeśli odchylenie to np. 0.05s, to gra jest dość równa.
-        // Jeśli odchylenie to > 0.2s, to gra jest nierówna.
-        // Mapujemy to na 0-100%
-        val consistency = ((1.0 - (avgDeviation / averageInterval)) * 100).toInt().coerceIn(0, 100)
+        val intervals = mutableListOf<Double>()
+        for (i in 0 until filteredOnsets.size - 1) {
+            intervals.add(filteredOnsets[i+1] - filteredOnsets[i])
+        }
 
-        return AnalysisResult(bpm, consistency)
+        if (targetBpm > 0) {
+            val beatDuration = 60.0 / targetBpm
+            val subdivisions = listOf(1.0, 0.5, 0.333, 0.25)
+
+            var totalError = 0.0
+            var matchedNotes = 0
+
+            for (interval in intervals) {
+                var bestSubdivisionError = Double.MAX_VALUE
+
+                for (sub in subdivisions) {
+                    val expectedInterval = beatDuration * sub
+                    val error = abs(interval - expectedInterval)
+                    val relativeError = error / expectedInterval
+
+                    if (relativeError < bestSubdivisionError) {
+                        bestSubdivisionError = relativeError
+                    }
+                }
+
+                if (bestSubdivisionError < errorMargin) {
+                    totalError += bestSubdivisionError
+                    matchedNotes++
+                } else {
+                    totalError += 0.5
+                }
+            }
+
+            val avgError = if (intervals.isNotEmpty()) totalError / intervals.size else 1.0
+            val accuracy = ((1.0 - avgError) * 100).toInt().coerceIn(0, 100)
+
+            return AnalysisResult(targetBpm, accuracy)
+        } else {
+            val averageInterval = intervals.average()
+            val bpm = if (averageInterval > 0) (60.0 / averageInterval).toInt() else 0
+            var totalDeviation = 0.0
+            for (interval in intervals) {
+                totalDeviation += abs(interval - averageInterval)
+            }
+            val consistency = if (averageInterval > 0) {
+                ((1.0 - (totalDeviation / intervals.size / averageInterval)) * 100).toInt().coerceIn(0, 100)
+            } else 0
+            return AnalysisResult(bpm, consistency)
+        }
     }
 }
