@@ -14,7 +14,7 @@ data class AnalysisResult(
 )
 
 class RhythmAnalyzer {
-    fun analyze(audioFile: File, targetBpm: Int = 0, threshold: Float = 0.15f, errorMargin: Float = 0.3f): AnalysisResult {
+    fun analyze(audioFile: File, targetBpm: Int = 0, threshold: Float = 0.15f, errorMargin: Float = 0.3f, latencyMs: Int = 0): AnalysisResult {
         if (!audioFile.exists() || audioFile.length() < 1000) {
             return if (targetBpm > 0) AnalysisResult(targetBpm, 0) else AnalysisResult(0, 0)
         }
@@ -26,7 +26,13 @@ class RhythmAnalyzer {
 
         val onsetDetector = ComplexOnsetDetector(1024, threshold.toDouble())
 
-        onsetDetector.setHandler { time, _ -> onsets.add(time) }
+        onsetDetector.setHandler { time, _ ->
+            val correctedTime = time - (latencyMs / 1000.0)
+            if (correctedTime >= 0) {
+                onsets.add(correctedTime)
+            }
+        }
+
         dispatcher.addAudioProcessor(onsetDetector)
         dispatcher.run()
 

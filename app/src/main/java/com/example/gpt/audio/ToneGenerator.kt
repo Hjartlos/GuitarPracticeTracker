@@ -17,8 +17,6 @@ object ToneGenerator {
             val numSamples = sampleRate * durationMs / 1000
             val samples = ShortArray(numSamples)
 
-            val fadeOutStart = numSamples * 0.1
-
             for (i in 0 until numSamples) {
                 val t = i.toDouble() / sampleRate
 

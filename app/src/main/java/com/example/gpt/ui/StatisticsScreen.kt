@@ -12,7 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.example.gpt.data.PracticeSession
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.max
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +60,6 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         item {
             Text("Statistics", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
             Spacer(modifier = Modifier.height(16.dp))
-
             WeeklyGoalCard(progress = weeklyProgress, goalHours = weeklyGoal)
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -85,14 +85,11 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text("Last 7 Days (Minutes)", fontSize = 16.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.7f))
+            Text("This Week (Mon-Sun)", fontSize = 16.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.7f))
             Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier.fillMaxWidth().height(250.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
+            Card(modifier = Modifier.fillMaxWidth().height(250.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 val dailyData = remember(filteredSessions) { calculateDailyStats(filteredSessions) }
-                BarChart(dailyData)
+                BarChart(dailyData, weeklyGoal)
             }
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -113,15 +110,14 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
 }
 
 @Composable
-fun SessionItemExpandable(
-    session: PracticeSession,
-    viewModel: SessionViewModel
-) {
+fun SessionItemExpandable(session: PracticeSession, viewModel: SessionViewModel) {
     var expanded by remember { mutableStateOf(false) }
     val dateFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
 
-    val playingSessionId by viewModel.currentlyPlayingSessionId.collectAsState()
-    val isPlaying = playingSessionId == session.id
+    val activeSessionId by viewModel.activePlayerSessionId.collectAsState()
+    val isGlobalPlaying by viewModel.isPlayerPlaying.collectAsState()
+    val isActive = activeSessionId == session.id
+    val isPlaying = isActive && isGlobalPlaying
 
     Card(
         modifier = Modifier
@@ -131,41 +127,22 @@ fun SessionItemExpandable(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "${session.exerciseType} (${session.tuning})",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 16.sp
-                    )
+                    Text("${session.exerciseType} (${session.tuning})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
 
                     if (session.avgBpm > 0) {
-                        Text(
-                            text = "${session.avgBpm} BPM • Acc: ${session.consistencyScore}%",
-                            color = if(session.consistencyScore > 80) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp
-                        )
+                        val accText = if (session.consistencyScore == 0) "No notes detected" else "Acc: ${session.consistencyScore}%"
+                        val textColor = if (session.consistencyScore == 0) MaterialTheme.colorScheme.error else if (session.consistencyScore > 80) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+
+                        Text("${session.avgBpm} BPM • $accText", color = textColor, fontSize = 12.sp)
                     } else {
                         Text("Free Play", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontStyle = FontStyle.Italic)
                     }
                 }
-
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "${session.durationSeconds / 60} min",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = dateFormat.format(Date(session.timestamp)),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("${session.durationSeconds / 60} min", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(dateFormat.format(Date(session.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -181,33 +158,23 @@ fun SessionItemExpandable(
                 }
 
                 if (session.audioPath != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))
-                    ) {
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            // Nagłówek playera
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.MusicNote, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Session Recording", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Recording", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
-
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
-                                    onClick = { viewModel.toggleAudioPlayback(session) },
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                    onClick = { viewModel.toggleHistoryPlayback(session) },
+                                    modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primary, CircleShape)
                                 ) {
                                     Icon(
-                                        imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                        contentDescription = "Play/Stop",
+                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = "Play/Pause",
                                         tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(28.dp)
                                     )
@@ -215,7 +182,7 @@ fun SessionItemExpandable(
 
                                 Spacer(modifier = Modifier.width(16.dp))
 
-                                if (isPlaying) {
+                                if (isActive) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         val progress by viewModel.playbackProgress.collectAsState()
                                         Slider(
@@ -224,9 +191,7 @@ fun SessionItemExpandable(
                                             colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary),
                                             modifier = Modifier.height(20.dp)
                                         )
-
                                         Spacer(modifier = Modifier.height(4.dp))
-
                                         Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                             listOf(0.5f, 0.75f, 1.0f).forEach { speed ->
                                                 val currentSpeed by viewModel.playbackSpeed.collectAsState()
@@ -245,7 +210,7 @@ fun SessionItemExpandable(
                                         }
                                     }
                                 } else {
-                                    Text("Tap to listen", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    Text("Tap play to listen", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -272,9 +237,12 @@ fun WeeklyGoalCard(progress: Float, goalHours: Int) {
 }
 
 @Composable
-fun BarChart(data: List<Pair<String, Float>>) {
-    val maxMinutes = data.maxOfOrNull { it.second }?.coerceAtLeast(10f) ?: 10f
-    val chartMax = ((maxMinutes / 10).toInt() + 1) * 10f
+fun BarChart(data: List<Pair<String, Float>>, weeklyGoalHours: Int) {
+    val dailyGoalMinutes = if (weeklyGoalHours > 0) (weeklyGoalHours * 60f) / 7f else 20f
+    val maxDataValue = data.maxOfOrNull { it.second } ?: 0f
+    val yAxisMax = max(maxDataValue, dailyGoalMinutes).coerceAtLeast(10f)
+    val chartMax = ((yAxisMax / 10).toInt() + 1) * 10f
+
     val barColor = MaterialTheme.colorScheme.primary
     val labelColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
@@ -330,14 +298,33 @@ fun ExerciseBreakdown(sessions: List<PracticeSession>) {
 fun calculateDailyStats(sessions: List<PracticeSession>): List<Pair<String, Float>> {
     val days = mutableListOf<Pair<String, Float>>()
     val dateFormat = SimpleDateFormat("E", Locale.getDefault())
-    for (i in 6 downTo 0) {
-        val checkCal = Calendar.getInstance()
-        checkCal.add(Calendar.DAY_OF_YEAR, -i)
-        val dayStart = checkCal.apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0) }.timeInMillis
-        val dayEnd = checkCal.apply { set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59) }.timeInMillis
+    val calendar = Calendar.getInstance()
+
+    var daysToSubtract = calendar.get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY
+    if (daysToSubtract < 0) daysToSubtract += 7
+    calendar.add(Calendar.DAY_OF_YEAR, -daysToSubtract)
+
+    calendar.set(Calendar.HOUR_OF_DAY, 0)
+    calendar.set(Calendar.MINUTE, 0)
+    calendar.set(Calendar.SECOND, 0)
+    calendar.set(Calendar.MILLISECOND, 0)
+
+    val weekStart = calendar.timeInMillis
+
+    for (i in 0..6) {
+        val currentDay = Calendar.getInstance()
+        currentDay.timeInMillis = weekStart
+        currentDay.add(Calendar.DAY_OF_YEAR, i)
+
+        val dayStart = currentDay.timeInMillis
+        currentDay.set(Calendar.HOUR_OF_DAY, 23)
+        currentDay.set(Calendar.MINUTE, 59)
+        val dayEnd = currentDay.timeInMillis
+
         val daySessions = sessions.filter { it.timestamp in dayStart..dayEnd }
         val totalMinutes = daySessions.sumOf { it.durationSeconds } / 60f
-        days.add(dateFormat.format(checkCal.time) to totalMinutes)
+
+        days.add(dateFormat.format(Date(dayStart)) to totalMinutes)
     }
     return days
 }

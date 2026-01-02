@@ -14,9 +14,9 @@ class SettingsRepository(private val context: Context) {
 
     private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
     private val WEEKLY_GOAL_KEY = intPreferencesKey("weekly_goal")
-
     private val INPUT_THRESHOLD_KEY = floatPreferencesKey("input_threshold")
     private val RHYTHM_MARGIN_KEY = floatPreferencesKey("rhythm_margin")
+    private val LATENCY_OFFSET_KEY = intPreferencesKey("latency_offset")
 
     suspend fun setDarkMode(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[DARK_MODE_KEY] = enabled }
@@ -34,7 +34,6 @@ class SettingsRepository(private val context: Context) {
         return context.dataStore.data.first()[WEEKLY_GOAL_KEY] ?: 5
     }
 
-
     suspend fun setInputThreshold(value: Float) {
         context.dataStore.edit { prefs -> prefs[INPUT_THRESHOLD_KEY] = value }
     }
@@ -49,5 +48,13 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun getRhythmMargin(): Float {
         return context.dataStore.data.first()[RHYTHM_MARGIN_KEY] ?: 0.30f
+    }
+
+    suspend fun setLatencyOffset(ms: Int) {
+        context.dataStore.edit { prefs -> prefs[LATENCY_OFFSET_KEY] = ms }
+    }
+
+    suspend fun getLatencyOffset(): Int {
+        return context.dataStore.data.first()[LATENCY_OFFSET_KEY] ?: 0
     }
 }

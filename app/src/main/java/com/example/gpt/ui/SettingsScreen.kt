@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -74,7 +75,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
 
         HorizontalDivider(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 8.dp))
 
-        SettingRow(icon = Icons.Default.Tune, title = "Audio Calibration", subtitle = "Sensitivity & Rhythm tolerance") {
+        SettingRow(icon = Icons.Default.Tune, title = "Audio Calibration", subtitle = "Sensitivity, Latency & Rhythm") {
             IconButton(onClick = { showCalibrationDialog = true }) {
                 Icon(Icons.Default.SettingsInputComponent, contentDescription = "Calibrate", tint = MaterialTheme.colorScheme.primary)
             }
@@ -100,6 +101,8 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(50.dp))
     }
 
     if (showGoalDialog) {
@@ -112,11 +115,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                     value = newGoal,
                     onValueChange = { newGoal = it.filter { c -> c.isDigit() } },
                     label = { Text("Hours") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary
-                    )
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = MaterialTheme.colorScheme.onSurface, unfocusedTextColor = MaterialTheme.colorScheme.onSurface, focusedBorderColor = MaterialTheme.colorScheme.primary)
                 )
             },
             confirmButton = { TextButton(onClick = { newGoal.toIntOrNull()?.let { viewModel.setWeeklyGoal(it) }; showGoalDialog = false }) { Text("Save", color = MaterialTheme.colorScheme.primary) } },
@@ -126,7 +125,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
     }
 
     if (showCalibrationDialog) {
-        CalibrationDialog(viewModel = viewModel, onDismiss = { showCalibrationDialog = false })
+        CalibrationDialog(viewModel = viewModel, onDismiss = { showCalibrationDialog = false; viewModel.stopTestMetronome() })
     }
 }
 
@@ -134,12 +133,13 @@ fun SettingsScreen(viewModel: SessionViewModel) {
 fun CalibrationDialog(viewModel: SessionViewModel, onDismiss: () -> Unit) {
     val threshold by viewModel.inputThreshold.collectAsState()
     val margin by viewModel.rhythmMargin.collectAsState()
+    val latencyOffset by viewModel.latencyOffset.collectAsState()
+    val isTestRunning by viewModel.isTestMetronomeRunning.collectAsState()
+
     val amplitude by viewModel.amplitude.collectAsState()
     val animatedAmplitude by animateFloatAsState(targetValue = amplitude, label = "amp")
 
-    LaunchedEffect(Unit) {
-        viewModel.startMonitoring()
-    }
+    LaunchedEffect(Unit) { viewModel.startMonitoring() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -147,11 +147,20 @@ fun CalibrationDialog(viewModel: SessionViewModel, onDismiss: () -> Unit) {
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
 
-                Text("Input Level", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                Text("Input Check", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Mic, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { viewModel.toggleTestMetronome() },
+                        colors = ButtonDefaults.buttonColors(containerColor = if(isTestRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text(if(isTestRunning) "Stop Test" else "Play Click", fontSize = 10.sp)
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
                     val progress = (animatedAmplitude / 60f).coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
@@ -162,31 +171,36 @@ fun CalibrationDialog(viewModel: SessionViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Text("Sensitivity", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
                 val sliderThreshold = 1f - ((threshold - 0.05f) / 0.45f)
+                Text("Sensitivity (${(sliderThreshold * 100).toInt()}%)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+
                 Slider(
                     value = sliderThreshold.coerceIn(0f, 1f),
-                    onValueChange = {
-                        val newThreshold = 0.5f - (it * 0.45f)
-                        viewModel.setInputThreshold(newThreshold)
-                    },
+                    onValueChange = { viewModel.setInputThreshold(0.5f - (it * 0.45f)) },
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Low (Anti-noise)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("High (Sensitive)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Text("Rhythm Strictness", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                Text("Latency Compensation (${latencyOffset}ms)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                Text("Increase if recording feels late compared to metronome.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Slider(
+                    value = latencyOffset.toFloat(),
+                    onValueChange = { viewModel.setLatencyOffset(it.toInt()) },
+                    valueRange = 0f..300f,
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
                 val sliderMargin = 1f - ((margin - 0.1f) / 0.4f)
+                Text("Rhythm Strictness (${(sliderMargin * 100).toInt()}%)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+
                 Slider(
                     value = sliderMargin.coerceIn(0f, 1f),
-                    onValueChange = {
-                        val newMargin = 0.5f - (it * 0.4f)
-                        viewModel.setRhythmMargin(newMargin)
-                    },
+                    onValueChange = { viewModel.setRhythmMargin(0.5f - (it * 0.4f)) },
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -206,11 +220,7 @@ fun CalibrationDialog(viewModel: SessionViewModel, onDismiss: () -> Unit) {
 
 @Composable
 fun SettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, trailing: @Composable () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
             Spacer(modifier = Modifier.width(16.dp))

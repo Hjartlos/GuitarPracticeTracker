@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.gpt.audio.AudioEngine
 import com.example.gpt.audio.Metronome
 import com.example.gpt.audio.RhythmAnalyzer
+import com.example.gpt.audio.ToneGenerator
 import com.example.gpt.data.PracticeSession
 import com.example.gpt.data.SessionDao
 import com.example.gpt.data.SettingsRepository
@@ -25,6 +26,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.compareTo
+import kotlin.div
+import kotlin.toString
 
 @HiltViewModel
 class SessionViewModel @Inject constructor(
@@ -37,18 +41,19 @@ class SessionViewModel @Inject constructor(
     private val rhythmAnalyzer = RhythmAnalyzer()
     private val metronome = Metronome()
 
+    // Odtwarzacz
     private var mediaPlayer: MediaPlayer? = null
-    private val _currentlyPlayingSessionId = MutableStateFlow<Int?>(null)
-    val currentlyPlayingSessionId = _currentlyPlayingSessionId.asStateFlow()
-
+    private val _activePlayerSessionId = MutableStateFlow<Int?>(null)
+    val activePlayerSessionId = _activePlayerSessionId.asStateFlow()
+    private val _isPlayerPlaying = MutableStateFlow(false)
+    val isPlayerPlaying = _isPlayerPlaying.asStateFlow()
     private val _playbackProgress = MutableStateFlow(0f)
     val playbackProgress = _playbackProgress.asStateFlow()
-
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed = _playbackSpeed.asStateFlow()
-
     private var playbackJob: Job? = null
 
+    // Audio / Stany
     val tunerResult = audioEngine.tunerResult
     val amplitude = audioEngine.amplitude
 
@@ -68,6 +73,13 @@ class SessionViewModel @Inject constructor(
     val inputThreshold = _inputThreshold.asStateFlow()
     private val _rhythmMargin = MutableStateFlow(0.30f)
     val rhythmMargin = _rhythmMargin.asStateFlow()
+    // NOWE: Latencja
+    private val _latencyOffset = MutableStateFlow(0)
+    val latencyOffset = _latencyOffset.asStateFlow()
+
+    private var testMetronomeJob: Job? = null
+    private val _isTestMetronomeRunning = MutableStateFlow(false)
+    val isTestMetronomeRunning = _isTestMetronomeRunning.asStateFlow()
 
     private val _isSessionActive = MutableStateFlow(false)
     val isSessionActive = _isSessionActive.asStateFlow()
@@ -81,7 +93,6 @@ class SessionViewModel @Inject constructor(
     val notes = _notes.asStateFlow()
 
     val allSessions = sessionDao.getAllSessions().stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
     val weeklyProgress = allSessions.map { sessions ->
         val weekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000
         val weekSessions = sessions.filter { it.timestamp >= weekAgo }
@@ -98,201 +109,92 @@ class SessionViewModel @Inject constructor(
             _weeklyGoalHours.value = settingsRepo.getWeeklyGoal()
             _inputThreshold.value = settingsRepo.getInputThreshold()
             _rhythmMargin.value = settingsRepo.getRhythmMargin()
+            _latencyOffset.value = settingsRepo.getLatencyOffset()
             startMonitoring()
         }
     }
 
-    fun toggleAudioPlayback(session: PracticeSession) {
-        if (_currentlyPlayingSessionId.value == session.id) {
-            if (mediaPlayer?.isPlaying == true) {
-                mediaPlayer?.pause()
-            } else {
-                mediaPlayer?.start()
-                startPlaybackTracker()
-            }
+    fun toggleTestMetronome() {
+        if (_isTestMetronomeRunning.value) {
+            stopTestMetronome()
         } else {
-            playAudio(session)
+            startTestMetronome()
         }
     }
 
-    private fun playAudio(session: PracticeSession) {
-        stopAudioPlayback()
-        val path = session.audioPath ?: return
-        val file = File(path)
-        if (!file.exists()) return
+    private fun startTestMetronome() {
+        _isTestMetronomeRunning.value = true
+        testMetronomeJob = viewModelScope.launch(Dispatchers.Default) {
+            while (_isTestMetronomeRunning.value) {
+                ToneGenerator.playTone(880f, 100)
+                delay(1000)
+            }
+        }
+    }
 
+    fun stopTestMetronome() {
+        _isTestMetronomeRunning.value = false
+        testMetronomeJob?.cancel()
+    }
+
+    fun setInputThreshold(value: Float) { _inputThreshold.value = value; viewModelScope.launch { settingsRepo.setInputThreshold(value) } }
+    fun setRhythmMargin(value: Float) { _rhythmMargin.value = value; viewModelScope.launch { settingsRepo.setRhythmMargin(value) } }
+    fun setLatencyOffset(ms: Int) { _latencyOffset.value = ms; viewModelScope.launch { settingsRepo.setLatencyOffset(ms) } }
+
+    fun toggleHistoryPlayback(session: PracticeSession) {
+        if (_activePlayerSessionId.value == session.id) togglePauseResume() else startNewPlayback(session.audioPath, session.id)
+    }
+    private fun togglePauseResume() {
+        mediaPlayer?.let { if (it.isPlaying) { it.pause(); _isPlayerPlaying.value = false; stopPlaybackTracker() } else { it.start(); _isPlayerPlaying.value = true; startPlaybackTracker() } }
+    }
+    private fun startNewPlayback(path: String?, sessionId: Int) {
+        closePlayer()
+        if (path == null) return
+        val file = File(path); if (!file.exists()) return
         try {
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(getApplication<Application>(), Uri.fromFile(file))
-                prepare()
-                // Ustaw prędkość
-                val params = PlaybackParams()
-                params.speed = _playbackSpeed.value
-                playbackParams = params
-
-                start()
-                setOnCompletionListener {
-                    _playbackProgress.value = 1f
-                    stopPlaybackTracker()
-                    _currentlyPlayingSessionId.value = null
-                }
-            }
-            _currentlyPlayingSessionId.value = session.id
-            startPlaybackTracker()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            stopAudioPlayback()
-        }
+            mediaPlayer = MediaPlayer().apply { setDataSource(getApplication<Application>(), Uri.fromFile(file)); prepare(); start(); setOnCompletionListener { _isPlayerPlaying.value = false; _playbackProgress.value = 0f; seekTo(0); stopPlaybackTracker() } }
+            _activePlayerSessionId.value = sessionId; _isPlayerPlaying.value = true; startPlaybackTracker()
+        } catch (e: Exception) { e.printStackTrace(); closePlayer() }
     }
-
-    fun seekAudio(progress: Float) {
-        mediaPlayer?.let { player ->
-            val newPos = (player.duration * progress).toInt()
-            player.seekTo(newPos)
-            _playbackProgress.value = progress
-        }
-    }
-
-    fun setPlaybackSpeed(speed: Float) {
-        _playbackSpeed.value = speed
-        mediaPlayer?.let { player ->
-            if (player.isPlaying || _currentlyPlayingSessionId.value != null) {
-                try {
-                    val params = player.playbackParams
-                    params.speed = speed
-                    player.playbackParams = params
-                } catch (e: Exception) { e.printStackTrace() }
-            }
-        }
-    }
-
-    private fun startPlaybackTracker() {
-        playbackJob?.cancel()
-        playbackJob = viewModelScope.launch {
-            while (mediaPlayer?.isPlaying == true) {
-                val current = mediaPlayer?.currentPosition ?: 0
-                val total = mediaPlayer?.duration ?: 1
-                if (total > 0) {
-                    _playbackProgress.value = current.toFloat() / total.toFloat()
-                }
-                delay(50)
-            }
-        }
-    }
-
-    private fun stopPlaybackTracker() {
-        playbackJob?.cancel()
-    }
-
-    private fun stopAudioPlayback() {
-        playbackJob?.cancel()
-        mediaPlayer?.release()
-        mediaPlayer = null
-        _currentlyPlayingSessionId.value = null
-        _playbackProgress.value = 0f
-    }
-
-    fun setInputThreshold(value: Float) {
-        _inputThreshold.value = value
-        viewModelScope.launch { settingsRepo.setInputThreshold(value) }
-    }
-
-    fun setRhythmMargin(value: Float) {
-        _rhythmMargin.value = value
-        viewModelScope.launch { settingsRepo.setRhythmMargin(value) }
-    }
+    fun seekAudio(progress: Float) { mediaPlayer?.let { it.seekTo((it.duration * progress).toInt()); _playbackProgress.value = progress } }
+    fun setPlaybackSpeed(speed: Float) { _playbackSpeed.value = speed; mediaPlayer?.let { try { val was = it.isPlaying; it.playbackParams = it.playbackParams.apply { this.speed = speed }; if (was && !it.isPlaying) it.start() } catch (e: Exception) {} } }
+    private fun startPlaybackTracker() { playbackJob?.cancel(); playbackJob = viewModelScope.launch { while (mediaPlayer?.isPlaying == true) { mediaPlayer?.let { _playbackProgress.value = it.currentPosition.toFloat() / it.duration.toFloat() }; delay(50) } } }
+    private fun stopPlaybackTracker() { playbackJob?.cancel() }
+    private fun closePlayer() { playbackJob?.cancel(); mediaPlayer?.release(); mediaPlayer = null; _activePlayerSessionId.value = null; _isPlayerPlaying.value = false; _playbackProgress.value = 0f }
 
     fun startMonitoring() { if (!_isSessionActive.value) audioEngine.start(null) }
     fun stopMonitoring() { if (!_isSessionActive.value) audioEngine.stop() }
-
     fun toggleMetronomeEnabled(enabled: Boolean) { _isMetronomeEnabled.value = enabled }
     fun setMetronomeBpm(bpm: Int) { _metronomeBpm.value = bpm; metronome.setBpm(bpm) }
     fun setMetronomeTimeSignature(ts: String) { _timeSignature.value = ts; val beats = ts.filter { it.isDigit() }.toIntOrNull() ?: 4; metronome.setTimeSignature(beats) }
 
     fun toggleSession() { if (_isSessionActive.value) stopSession() else startSession() }
-
     private fun startSession() {
-        stopAudioPlayback()
-        audioEngine.stop()
-        _isSessionActive.value = true
-        _elapsedSeconds.value = 0
-        currentRecordingFile = File(getApplication<Application>().cacheDir, "temp_session.wav")
-
-        viewModelScope.launch(Dispatchers.Default) {
-            if (_isMetronomeEnabled.value) {
-                metronome.setBpm(_metronomeBpm.value)
-                val beats = _timeSignature.value.filter { it.isDigit() }.toIntOrNull() ?: 4
-                metronome.setTimeSignature(beats)
-                metronome.start()
-            }
-        }
+        closePlayer(); stopTestMetronome(); audioEngine.stop() // Zatrzymaj testy przed sesją
+        _isSessionActive.value = true; _elapsedSeconds.value = 0; currentRecordingFile = File(getApplication<Application>().cacheDir, "temp_session.wav")
+        viewModelScope.launch(Dispatchers.Default) { if (_isMetronomeEnabled.value) { metronome.setBpm(_metronomeBpm.value); val beats = _timeSignature.value.filter { it.isDigit() }.toIntOrNull() ?: 4; metronome.setTimeSignature(beats); metronome.start() } }
         viewModelScope.launch(Dispatchers.IO) { audioEngine.start(currentRecordingFile!!) }
-        timerJob = viewModelScope.launch {
-            val startTime = System.currentTimeMillis()
-            while (_isSessionActive.value) {
-                val now = System.currentTimeMillis()
-                _elapsedSeconds.value = ((now - startTime) / 1000).toInt()
-                delay(100)
-            }
-        }
+        timerJob = viewModelScope.launch { val start = System.currentTimeMillis(); while (_isSessionActive.value) { _elapsedSeconds.value = ((System.currentTimeMillis() - start) / 1000).toInt(); delay(100) } }
     }
-
-    private fun stopSession() {
-        _isSessionActive.value = false
-        timerJob?.cancel()
-        audioEngine.stop()
-        metronome.stop()
-        saveCurrentSession()
-        startMonitoring()
-    }
+    private fun stopSession() { _isSessionActive.value = false; timerJob?.cancel(); audioEngine.stop(); metronome.stop(); saveCurrentSession(); startMonitoring() }
 
     private fun saveCurrentSession() {
         viewModelScope.launch {
-            val recordingFile = currentRecordingFile ?: return@launch
-            val duration = _elapsedSeconds.value
-            if (duration < 5) { recordingFile.delete(); _notes.value = ""; _elapsedSeconds.value = 0; return@launch }
+            val file = currentRecordingFile ?: return@launch
+            if (_elapsedSeconds.value < 5) { file.delete(); return@launch }
+            val wasMeta = _isMetronomeEnabled.value
+            val result = if (wasMeta) withContext(Dispatchers.IO) {
+                rhythmAnalyzer.analyze(file, _metronomeBpm.value, _inputThreshold.value, _rhythmMargin.value, _latencyOffset.value)
+            } else com.example.gpt.audio.AnalysisResult(0,0)
 
-            val wasMetronomeOn = _isMetronomeEnabled.value
-            val targetBpm = if (wasMetronomeOn) _metronomeBpm.value else 0
-            var bpmResult = 0
-            var consistencyResult = 0
+            val context = getApplication<Application>(); val dir = File(context.filesDir, "recordings"); if (!dir.exists()) dir.mkdirs()
+            val finalFile = File(dir, "rec_${System.currentTimeMillis()}.wav"); withContext(Dispatchers.IO) { file.copyTo(finalFile, true); file.delete() }
 
-            if (wasMetronomeOn) {
-                val analysis = withContext(Dispatchers.IO) { rhythmAnalyzer.analyze(recordingFile, targetBpm, _inputThreshold.value, _rhythmMargin.value) }
-                bpmResult = analysis.bpm
-                consistencyResult = analysis.consistency
-            }
-
-            val context = getApplication<Application>()
-            val recordingsDir = File(context.filesDir, "recordings")
-            if (!recordingsDir.exists()) recordingsDir.mkdirs()
-            val fileName = "rec_${System.currentTimeMillis()}.wav"
-            val finalFile = File(recordingsDir, fileName)
-
-            withContext(Dispatchers.IO) {
-                recordingFile.copyTo(finalFile, overwrite = true)
-                recordingFile.delete()
-            }
-
-            val session = PracticeSession(
-                timestamp = System.currentTimeMillis(),
-                durationSeconds = duration.toLong(),
-                exerciseType = _exerciseType.value,
-                tuning = _tuning.value,
-                notes = _notes.value,
-                avgBpm = bpmResult,
-                consistencyScore = consistencyResult,
-                timeSignature = if(wasMetronomeOn) "${_timeSignature.value}/4" else "-",
-                audioPath = finalFile.absolutePath
-            )
-            sessionDao.insertSession(session)
-            currentRecordingFile = null
-            _notes.value = ""
-            _elapsedSeconds.value = 0
+            sessionDao.insertSession(PracticeSession(timestamp = System.currentTimeMillis(), durationSeconds = _elapsedSeconds.value.toLong(), exerciseType = _exerciseType.value, tuning = _tuning.value, notes = _notes.value, avgBpm = result.bpm, consistencyScore = result.consistency, timeSignature = if(wasMeta) "${_timeSignature.value}/4" else "-", audioPath = finalFile.absolutePath))
+            currentRecordingFile = null; _notes.value = ""; _elapsedSeconds.value = 0
         }
     }
 
-    // Helpery
     fun updateExerciseType(type: String) { _exerciseType.value = type }
     fun updateTuning(newTuning: String) { _tuning.value = newTuning }
     fun updateNotes(newNotes: String) { _notes.value = newNotes }
@@ -301,13 +203,17 @@ class SessionViewModel @Inject constructor(
     fun exportToCSV(context: Context): String {
         val sessions = allSessions.value
         val csv = StringBuilder("Date,Time,Duration (min),Exercise,Tuning,BPM,Accuracy,TimeSig,Notes\n")
+
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+
         sessions.forEach { s ->
             val date = Date(s.timestamp)
-            val bpmStr = if(s.avgBpm > 0) s.avgBpm.toString() else "Free"
-            val accStr = if(s.avgBpm > 0) "${s.consistencyScore}%" else "-"
-            csv.append("${dateFormat.format(date)},${timeFormat.format(date)},${s.durationSeconds/60},${s.exerciseType},${s.tuning},${bpmStr},${accStr},${s.timeSignature},\"${s.notes}\"\n")
+            val bpmStr = if (s.avgBpm > 0) s.avgBpm.toString() else "Free"
+            val accStr = if (s.avgBpm > 0) "${s.consistencyScore}%" else "-"
+            val safeNotes = s.notes.replace("\"", "\"\"")
+
+            csv.append("${dateFormat.format(date)},${timeFormat.format(date)},${s.durationSeconds / 60},${s.exerciseType},${s.tuning},${bpmStr},${accStr},${s.timeSignature},\"${safeNotes}\"\n")
         }
         return csv.toString()
     }
