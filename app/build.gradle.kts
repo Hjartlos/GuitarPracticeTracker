@@ -52,34 +52,28 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
-    // Material Icons Extended (brakująca zależność!)
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
     implementation("androidx.compose.material:material-icons-extended:1.6.0")
 
-    // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    // Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.32.0")
 
-    // Wykresy Vico
     implementation("com.patrykandpatrick.vico:compose:1.13.0")
     implementation("com.patrykandpatrick.vico:core:1.13.0")
 
-    // Room
     val room_version = "2.6.1"
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
 
-    // Hilt
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation("com.google.dagger:hilt-android:2.51.1")
     kapt("com.google.dagger:hilt-android-compiler:2.51.1")
 
-    // TarsosDSP
     implementation("be.tarsos.dsp:core:2.5")
 
-    // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

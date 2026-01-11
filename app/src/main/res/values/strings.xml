@@ -1,3 +1,250 @@
 <resources>
-    <string name="app_name">GPT</string>
+    <string name="app_name">Guitar Tracker</string>
+
+    <string name="nav_practice">Practice</string>
+    <string name="nav_tuner">Tuner</string>
+    <string name="nav_stats">Statistics</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="done">Done</string>
+    <string name="edit">Edit</string>
+    <string name="lang_english">English</string>
+    <string name="lang_polish">Polish</string>
+
+    <string name="get_ready">GET READY</string>
+    <string name="rhythm_pattern">RHYTHM PATTERN (TAP TO EDIT)</string>
+    <string name="accent">Accent</string>
+    <string name="beat">Beat</string>
+    <string name="mute">Mute</string>
+    <string name="metronome">Metronome</string>
+    <string name="beats">Beats</string>
+    <string name="time_sig">Time Signature</string>
+    <string name="exercise_type">Exercise Type</string>
+    <string name="required_field">Required Field</string>
+    <string name="enter_type_hint">Enter type or select below</string>
+    <string name="tuning_label">Tuning</string>
+    <string name="enter_tuning_hint">Enter tuning or select below</string>
+    <string name="session_notes_label">Session Notes (Optional)</string>
+
+    <string name="ex_scales">Scales</string>
+    <string name="ex_riffs">Riffs</string>
+    <string name="ex_solos">Solos</string>
+    <string name="ex_chords">Chords</string>
+    <string name="ex_impro">Impro</string>
+    <string name="ex_theory">Theory</string>
+    <string name="ex_warmup">Warmup</string>
+
+    <string name="mic_sensitivity_fmt">Mic Sensitivity: %d%%</string>
+    <string name="reference_pitch_fmt">Reference Pitch (A4)</string>
+    <string name="string_setup">String Setup</string>
+    <string name="tap_to_play_tone">Tap card to play tone</string>
+    <string name="string_n">String %d</string>
+    <string name="edit_string_title">Edit String %d</string>
+    <string name="note">Note</string>
+    <string name="octave">Octave</string>
+    <string name="tuner_perfect">PERFECT</string>
+    <string name="tuner_too_low">TOO LOW</string>
+    <string name="tuner_too_high">TOO HIGH</string>
+    <string name="tuner_listening">LISTENING...</string>
+
+    <string name="statistics_title">Statistics</string>
+    <string name="weekly_goal_label">Weekly Goal</string>
+    <string name="weekly_progress_fmt">%d h / %d h</string>
+    <string name="filters">Filters</string>
+    <string name="filter_metronome_only">Metronome Only</string>
+    <string name="daily_activity">Daily Activity</string>
+    <string name="current_week_subtitle">Current Week (Mon-Sun)</string>
+    <string name="unit_min">Min</string>
+    <string name="unit_hrs">Hrs</string>
+    <string name="time_by_exercise">Time by Exercise</string>
+    <string name="no_data_filters">No data matching filters.</string>
+    <string name="history_title">History</string>
+    <string name="no_notes_detected">No notes detected</string>
+    <string name="free_play">Free Play</string>
+    <string name="rhythm_alignment">Rhythm Alignment</string>
+    <string name="rhythm_legend">Lines: Metronome | Bars: Your Audio</string>
+    <string name="full_analysis_btn">Full Rhythm Analysis</string>
+    <string name="notes_label">Notes:</string>
+    <string name="recording_label">Recording</string>
+    <string name="tap_to_listen">Tap play to listen</string>
+    <string name="no_audio_available">No Audio Available</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">Customize your experience</string>
+    <string name="language">Language</string>
+    <string name="select_language">Select Language</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="dark_theme_desc">Dark theme</string>
+    <string name="light_theme_desc">Light theme</string>
+    <string name="set_weekly_goal_title">Set Weekly Goal</string>
+    <string name="hours_label">Hours</string>
+    <string name="hours_per_week_fmt">%d hours per week</string>
+    <string name="tuning_standards">Tuning Standards</string>
+    <string name="tuning_desc_fmt">A4=%dHz • %s</string>
+    <string name="sharps_label">Sharps (♯)</string>
+    <string name="flats_label">Flats (♭)</string>
+    <string name="note_notation">Note Notation</string>
+    <string name="using_flats">Using Flats (♭)</string>
+    <string name="using_sharps">Using Sharps (♯)</string>
+    <string name="audio_calibration">Audio Calibration</string>
+    <string name="audio_calib_subtitle_fmt">Latency: %dms</string>
+    <string name="input_check">Microphone Test</string>
+    <string name="input_check_desc">Test if your device picks up sound</string>
+    <string name="stop_test">Stop</string>
+    <string name="play_click">Test Sound</string>
+    <string name="low_noise">Quiet environment</string>
+    <string name="high_sensitive">Noisy environment</string>
+    <string name="latency_comp_fmt">Audio Latency (%dms)</string>
+    <string name="auto_calibrate_btn">Auto Calibrate (Loopback)</string>
+    <string name="calibrating">Calibrating...</string>
+    <string name="manual_offset">Fine-tune manually:</string>
+    <string name="rhythm_strictness_fmt">Rhythm Tolerance (%d%%)</string>
+    <string name="rhythm_strictness_desc">How much timing error is allowed</string>
+    <string name="strictness_normal">Forgiving</string>
+    <string name="strictness_strict">Precise</string>
+    <string name="export_data">Export Data</string>
+    <string name="export_desc">Save or Share CSV</string>
+    <string name="import_data">Import Data</string>
+    <string name="import_desc">Load sessions from CSV</string>
+    <string name="import_success">Successfully imported %d sessions</string>
+    <string name="import_error">Error importing data</string>
+    <string name="import_invalid_format">Invalid CSV format</string>
+    <string name="about">About</string>
+    <string name="about_desc">Credits &amp; Info</string>
+    <string name="about_app_title">About Guitar Tracker</string>
+    <string name="about_app_text">Guitar Practice Tracker helps you monitor your progress, tune your instrument, and improve rhythm.</string>
+    <string name="developer">Developer</string>
+    <string name="audio_engine_info">Audio engine powered by TarsosDSP.</string>
+    <string name="version">Version</string>
+    <string name="up_to_date">Up to date</string>
+
+    <string name="latency_preparing">Preparing...</string>
+    <string name="latency_listen">Listen &amp; Wait...</string>
+    <string name="latency_measured">Measured: %dms</string>
+    <string name="latency_failed">Failed. Too quiet?</string>
+
+    <string name="tap_calibration_ready">Get ready to tap...</string>
+    <string name="tap_calibration_listen">Tap along with the beat!</string>
+    <string name="tap_calibration_not_enough">Not enough taps. Try again.</string>
+    <string name="tap_calibration_failed">Calibration failed. Try again.</string>
+    <string name="tap_calibration_done">Calibration complete!</string>
+    <string name="tap_calibrate_btn">Tap Calibration</string>
+    <string name="tap_here">TAP HERE</string>
+
+    <string name="tuning_out_of_range">Outside tuner range (E1-E5)</string>
+
+    <string name="stats_hits">Hits</string>
+    <string name="stats_duration">Duration</string>
+    <string name="legend_on_beat">On beat</string>
+    <string name="legend_close">Close</string>
+    <string name="legend_off_beat">Off beat</string>
+    <string name="show_details">Show details</string>
+    <string name="scroll_to_see_more">← Scroll to see more →</string>
+    <string name="table_time">Time</string>
+    <string name="table_beat">Beat</string>
+    <string name="table_deviation">Deviation</string>
+    <string name="table_status">Status</string>
+    <string name="and_more_hits">...and %d more hits</string>
+
+    <string name="notification_channel_reminder">Practice Reminders</string>
+    <string name="notification_channel_reminder_desc">Daily reminders to practice guitar</string>
+    <string name="notification_channel_goals">Goals &amp; Achievements</string>
+    <string name="notification_channel_goals_desc">Notifications about your practice goals</string>
+
+    <string name="reminder_title">🎸 Time to Practice!</string>
+    <string name="reminder_msg_1">Your guitar misses you! Time for some practice.</string>
+    <string name="reminder_msg_2">A few minutes of practice makes a huge difference!</string>
+    <string name="reminder_msg_3">Ready to improve your skills today?</string>
+    <string name="reminder_msg_4">Consistency is key! Let\'s practice.</string>
+
+    <string name="goal_achieved_title">🏆 Goal Achieved!</string>
+    <string name="goal_achieved_message">You\'ve reached your %s goal!</string>
+
+    <string name="notifications_section">Notifications</string>
+    <string name="practice_reminder">Practice Reminder</string>
+    <string name="reminder_time_fmt">Daily at %s</string>
+    <string name="reminder_disabled">Disabled</string>
+    <string name="set_reminder_time">Set Reminder Time</string>
+    <string name="daily_goal">Daily Goal</string>
+    <string name="daily_goal_fmt">%d minutes per day</string>
+    <string name="goal_notifications">Goal Notifications</string>
+    <string name="goal_notifications_desc">Notify when daily goal is reached</string>
+    <string name="daily_goal_type_fmt">%d min daily goal</string>
+
+    <string name="loading">Loading...</string>
+    <string name="app_section">App</string>
+    <string name="practice_section">Practice</string>
+    <string name="audio_section">Audio &amp; Tuning</string>
+    <string name="data_section">Data Management</string>
+
+    <string name="skip">Skip</string>
+    <string name="back">Back</string>
+    <string name="get_started">Get Started</string>
+    <string name="onboarding_welcome_title">Welcome to Guitar Tracker</string>
+    <string name="onboarding_welcome_desc">Your personal practice companion for mastering the guitar. Track your progress, improve your timing, and achieve your goals.</string>
+    <string name="onboarding_practice_title">Track Your Practice</string>
+    <string name="onboarding_practice_desc">Log every practice session with detailed notes. Record audio, track duration, and monitor your consistency.</string>
+    <string name="onboarding_metronome_title">Built-in Metronome</string>
+    <string name="onboarding_metronome_desc">Practice with a customizable metronome. Set your tempo, choose time signatures, and create custom accent patterns.</string>
+    <string name="onboarding_tuner_title">Precision Tuner</string>
+    <string name="onboarding_tuner_desc">Keep your guitar perfectly in tune with our accurate chromatic tuner. Supports multiple tuning presets.</string>
+    <string name="onboarding_stats_title">View Your Progress</string>
+    <string name="onboarding_stats_desc">Analyze your practice habits with detailed statistics. See weekly goals, rhythm accuracy, and practice history.</string>
+
+    <string name="show_tutorial">App Guide</string>
+    <string name="show_tutorial_desc">Learn how to use all features</string>
+    <string name="tutorial_title">App Features Guide</string>
+    <string name="tutorial_practice_title">🎸 Practice Sessions</string>
+    <string name="tutorial_practice_content">• Start a session by pressing the Play button\n• Set tempo with the BPM slider (40-240)\n• Choose time signature (e.g. 4/4, 3/4, 6/8)\n• Click on circles to customize beat accents\n• Session automatically records your playing\n• Access history in Statistics tab</string>
+    <string name="tutorial_metronome_title">⏱️ Metronome</string>
+    <string name="tutorial_metronome_content">• Visual beat indicator shows current beat\n• 1/4 = quarter notes, 1/8 = eighth notes\n• Tap circles to cycle: Normal → Accent → Mute\n• First beat is always accented by default\n• Tempo syncs with your practice recording</string>
+    <string name="tutorial_tuner_title">🎵 Tuner</string>
+    <string name="tutorial_tuner_content">• Select your string to hear reference tone\n• Play your string and watch the gauge\n• Green = in tune, Yellow = close, Red = off\n• Adjust A4 frequency in Settings (default 440Hz)\n• Choose # or ♭ notation in Settings\n• Supports standard tuning and more</string>
+    <string name="tutorial_stats_title">📊 Statistics</string>
+    <string name="tutorial_stats_content">• View weekly practice progress chart\n• Track total practice time\n• See rhythm analysis from recordings\n• Review session history with playback\n• Set weekly goals in Settings\n• Export data to CSV for backup</string>
+    <string name="tutorial_tips_title">💡 Pro Tips</string>
+    <string name="tutorial_tips_content">• Practice daily for best results\n• Start slow and increase tempo gradually\n• Use rhythm analysis to improve timing\n• Enable notifications for reminders\n• Calibrate audio for your device\n• Earn achievements by practicing regularly</string>
+
+    <string name="achievements_title">Achievements</string>
+    <string name="achievement_unlocked">Achievement Unlocked!</string>
+    <string name="unlocked_on">Unlocked on %1$s</string>
+
+    <string name="achievement_first_session_title">First Steps</string>
+    <string name="achievement_first_session_desc">Complete your first practice session</string>
+    <string name="achievement_week_streak_title">Week Warrior</string>
+    <string name="achievement_week_streak_desc">Practice every day for 7 days</string>
+    <string name="achievement_month_streak_title">Dedicated Guitarist</string>
+    <string name="achievement_month_streak_desc">Practice every day for 30 days</string>
+    <string name="achievement_hour_total_title">Getting Started</string>
+    <string name="achievement_hour_total_desc">Practice for a total of 1 hour</string>
+    <string name="achievement_ten_hours_title">Committed</string>
+    <string name="achievement_ten_hours_desc">Practice for a total of 10 hours</string>
+    <string name="achievement_hundred_hours_title">Master in Training</string>
+    <string name="achievement_hundred_hours_desc">Practice for a total of 100 hours</string>
+    <string name="achievement_metronome_master_title">Rhythm King</string>
+    <string name="achievement_metronome_master_desc">Complete 50 sessions with metronome</string>
+    <string name="achievement_speed_demon_title">Speed Demon</string>
+    <string name="achievement_speed_demon_desc">Practice at 200+ BPM</string>
+    <string name="achievement_goal_getter_title">Goal Getter</string>
+    <string name="achievement_goal_getter_desc">Reach your weekly goal</string>
+    <string name="achievement_goal_crusher_title">Goal Crusher</string>
+    <string name="achievement_goal_crusher_desc">Reach your weekly goal 10 times</string>
+    <string name="achievement_variety_player_title">Variety Player</string>
+    <string name="achievement_variety_player_desc">Practice 5 different exercise types</string>
+    <string name="achievement_early_bird_title">Early Bird</string>
+    <string name="achievement_early_bird_desc">Practice before 8 AM five times</string>
+    <string name="achievement_night_owl_title">Night Owl</string>
+    <string name="achievement_night_owl_desc">Practice after 10 PM five times</string>
+    <string name="achievement_perfect_pitch_title">Perfect Pitch</string>
+    <string name="achievement_perfect_pitch_desc">Tune your guitar perfectly 100 times</string>
+
+    <string name="haptic_feedback">Haptic Feedback</string>
+    <string name="haptic_feedback_desc">Vibration on metronome beats</string>
+
+    <string name="dashboard_weekly_goal">Weekly Goal</string>
+    <string name="dashboard_streak_fmt">%d day streak</string>
+    <string name="dashboard_streak_label">Streak</string>
 </resources>

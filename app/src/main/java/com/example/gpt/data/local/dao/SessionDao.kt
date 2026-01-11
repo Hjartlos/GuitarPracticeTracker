@@ -1,8 +1,9 @@
-package com.example.gpt.data
+package com.example.gpt.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import com.example.gpt.data.local.entity.PracticeSession
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -15,6 +16,9 @@ interface SessionDao {
 
     @Query("SELECT * FROM sessions WHERE timestamp >= :startTime")
     fun getSessionsFromDate(startTime: Long): Flow<List<PracticeSession>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM sessions WHERE timestamp = :timestamp AND durationSeconds = :duration AND exerciseType = :exerciseType)")
+    suspend fun sessionExists(timestamp: Long, duration: Long, exerciseType: String): Boolean
 
     @Query("DELETE FROM sessions")
     suspend fun clearAll()

@@ -1,0 +1,250 @@
+<resources>
+    <string name="app_name">Guitar Tracker</string>
+
+    <string name="nav_practice">Ćwiczenia</string>
+    <string name="nav_tuner">Stroik</string>
+    <string name="nav_stats">Statystyki</string>
+    <string name="nav_settings">Ustawienia</string>
+
+    <string name="save">Zapisz</string>
+    <string name="cancel">Anuluj</string>
+    <string name="close">Zamknij</string>
+    <string name="done">Gotowe</string>
+    <string name="edit">Edytuj</string>
+    <string name="lang_english">Angielski</string>
+    <string name="lang_polish">Polski</string>
+
+    <string name="get_ready">PRZYGOTUJ SIĘ</string>
+    <string name="rhythm_pattern">SCHEMAT RYTMICZNY (DOTKNIJ ABY EDYTOWAĆ)</string>
+    <string name="accent">Akcent</string>
+    <string name="beat">Beat</string>
+    <string name="mute">Wycisz</string>
+    <string name="metronome">Metronom</string>
+    <string name="beats">Beats</string>
+    <string name="time_sig">Metrum</string>
+    <string name="exercise_type">Typ Ćwiczenia</string>
+    <string name="required_field">Pole Wymagane</string>
+    <string name="enter_type_hint">Wpisz typ lub wybierz</string>
+    <string name="tuning_label">Strojenie</string>
+    <string name="enter_tuning_hint">Wpisz strój lub wybierz</string>
+    <string name="session_notes_label">Notatki z sesji (Opcjonalne)</string>
+
+    <string name="ex_scales">Skale</string>
+    <string name="ex_riffs">Riff-y</string>
+    <string name="ex_solos">Solówki</string>
+    <string name="ex_chords">Akordy</string>
+    <string name="ex_impro">Improwizacja</string>
+    <string name="ex_theory">Teoria</string>
+    <string name="ex_warmup">Rozgrzewka</string>
+
+    <string name="mic_sensitivity_fmt">Czułość Mikrofonu: %d%%</string>
+    <string name="reference_pitch_fmt">Ton Odniesienia (A4)</string>
+    <string name="string_setup">Ustawienie Strun</string>
+    <string name="tap_to_play_tone">Dotknij karty aby zagrać dźwięk</string>
+    <string name="string_n">Struna %d</string>
+    <string name="edit_string_title">Edytuj Strunę %d</string>
+    <string name="note">Dźwięk</string>
+    <string name="octave">Oktawa</string>
+    <string name="tuner_perfect">IDEALNIE</string>
+    <string name="tuner_too_low">ZA NISKO</string>
+    <string name="tuner_too_high">ZA WYSOKO</string>
+    <string name="tuner_listening">SŁUCHAM...</string>
+
+    <string name="statistics_title">Statystyki</string>
+    <string name="weekly_goal_label">Cel Tygodniowy</string>
+    <string name="weekly_progress_fmt">%d h / %d h</string>
+    <string name="filters">Filtry</string>
+    <string name="filter_metronome_only">Tylko Metronom</string>
+    <string name="daily_activity">Dzienna Aktywność</string>
+    <string name="current_week_subtitle">Bieżący Tydzień (Pon-Nie)</string>
+    <string name="unit_min">Min</string>
+    <string name="unit_hrs">Godz</string>
+    <string name="time_by_exercise">Czas wg Ćwiczeń</string>
+    <string name="no_data_filters">Brak danych dla filtrów.</string>
+    <string name="history_title">Historia</string>
+    <string name="no_notes_detected">Nie wykryto nut</string>
+    <string name="free_play">Gra Dowolna</string>
+    <string name="rhythm_alignment">Wyrównanie Rytmu</string>
+    <string name="rhythm_legend">Linie: Metronom | Słupki: Twoje Audio</string>
+    <string name="full_analysis_btn">Pełna Analiza Rytmu</string>
+    <string name="notes_label">Notatki:</string>
+    <string name="recording_label">Nagranie</string>
+    <string name="tap_to_listen">Dotknij by posłuchać</string>
+    <string name="no_audio_available">Brak Audio</string>
+
+    <string name="settings_title">Ustawienia</string>
+    <string name="settings_subtitle">Dostosuj aplikację do siebie</string>
+    <string name="language">Język</string>
+    <string name="select_language">Wybierz Język</string>
+    <string name="dark_mode">Tryb Ciemny</string>
+    <string name="dark_theme_desc">Ciemny motyw</string>
+    <string name="light_theme_desc">Jasny motyw</string>
+    <string name="set_weekly_goal_title">Ustaw Cel Tygodniowy</string>
+    <string name="hours_label">Godziny</string>
+    <string name="hours_per_week_fmt">%d godzin tygodniowo</string>
+    <string name="tuning_standards">Standardy Strojenia</string>
+    <string name="tuning_desc_fmt">A4=%dHz • %s</string>
+    <string name="sharps_label">Krzyżyki (♯)</string>
+    <string name="flats_label">Bemole (♭)</string>
+    <string name="note_notation">Notacja Nut</string>
+    <string name="using_flats">Użyj Bemoli (♭)</string>
+    <string name="using_sharps">Użyj Krzyżyków (♯)</string>
+    <string name="audio_calibration">Kalibracja Audio</string>
+    <string name="audio_calib_subtitle_fmt">Latencja: %dms</string>
+    <string name="input_check">Test Mikrofonu</string>
+    <string name="input_check_desc">Sprawdź czy urządzenie odbiera dźwięk</string>
+    <string name="stop_test">Stop</string>
+    <string name="play_click">Testuj Dźwięk</string>
+    <string name="low_noise">Cicha okolica</string>
+    <string name="high_sensitive">Głośna okolica</string>
+    <string name="latency_comp_fmt">Opóźnienie Audio (%dms)</string>
+    <string name="auto_calibrate_btn">Auto-Kalibracja (Pętla)</string>
+    <string name="calibrating">Kalibracja...</string>
+    <string name="manual_offset">Dostosuj ręcznie:</string>
+    <string name="rhythm_strictness_fmt">Tolerancja Rytmu (%d%%)</string>
+    <string name="rhythm_strictness_desc">Dozwolony błąd czasowy</string>
+    <string name="strictness_normal">Wyrozumiały</string>
+    <string name="strictness_strict">Precyzyjny</string>
+    <string name="export_data">Eksport Danych</string>
+    <string name="export_desc">Zapisz lub Udostępnij CSV</string>
+    <string name="import_data">Import Danych</string>
+    <string name="import_desc">Wczytaj sesje z pliku CSV</string>
+    <string name="import_success">Pomyślnie zaimportowano %d sesji</string>
+    <string name="import_error">Błąd importu danych</string>
+    <string name="import_invalid_format">Nieprawidłowy format CSV</string>
+    <string name="about">O Aplikacji</string>
+    <string name="about_desc">Informacje i Twórcy</string>
+    <string name="about_app_title">O Guitar Tracker</string>
+    <string name="about_app_text">Guitar Practice Tracker pomaga monitorować postępy, stroić instrument i poprawiać poczucie rytmu.</string>
+    <string name="developer">Programista</string>
+    <string name="audio_engine_info">Silnik audio: TarsosDSP.</string>
+    <string name="version">Wersja</string>
+    <string name="up_to_date">Aktualna</string>
+
+    <string name="latency_preparing">Przygotowanie...</string>
+    <string name="latency_listen">Słucham...</string>
+    <string name="latency_measured">Zmierzono: %dms</string>
+    <string name="latency_failed">Błąd. Za cicho?</string>
+
+    <string name="tap_calibration_ready">Przygotuj się do stukania...</string>
+    <string name="tap_calibration_listen">Stukaj w rytm!</string>
+    <string name="tap_calibration_not_enough">Za mało stuknięć. Spróbuj ponownie.</string>
+    <string name="tap_calibration_failed">Kalibracja nieudana. Spróbuj ponownie.</string>
+    <string name="tap_calibration_done">Kalibracja zakończona!</string>
+    <string name="tap_calibrate_btn">Kalibracja Stukaniem</string>
+    <string name="tap_here">STUKNIJ TUTAJ</string>
+
+    <string name="tuning_out_of_range">Poza zakresem tunera (E1-E5)</string>
+
+    <string name="stats_hits">Trafienia</string>
+    <string name="stats_duration">Czas trwania</string>
+    <string name="legend_on_beat">W rytm</string>
+    <string name="legend_close">Blisko</string>
+    <string name="legend_off_beat">Poza rytmem</string>
+    <string name="show_details">Pokaż szczegóły</string>
+    <string name="scroll_to_see_more">← Przewiń aby zobaczyć więcej →</string>
+    <string name="table_time">Czas</string>
+    <string name="table_beat">Beat</string>
+    <string name="table_deviation">Odchylenie</string>
+    <string name="table_status">Status</string>
+    <string name="and_more_hits">...i jeszcze %d uderzeń</string>
+
+    <string name="notification_channel_reminder">Przypomnienia o ćwiczeniach</string>
+    <string name="notification_channel_reminder_desc">Codzienne przypomnienia o grze na gitarze</string>
+    <string name="notification_channel_goals">Cele i osiągnięcia</string>
+    <string name="notification_channel_goals_desc">Powiadomienia o Twoich celach</string>
+
+    <string name="reminder_title">🎸 Czas na ćwiczenia!</string>
+    <string name="reminder_msg_1">Twoja gitara za Tobą tęskni! Czas poćwiczyć.</string>
+    <string name="reminder_msg_2">Kilka minut ćwiczeń robi wielką różnicę!</string>
+    <string name="reminder_msg_3">Gotowy żeby poprawić swoje umiejętności?</string>
+    <string name="reminder_msg_4">Regularność jest kluczem! Poćwiczmy.</string>
+
+    <string name="goal_achieved_title">🏆 Cel osiągnięty!</string>
+    <string name="goal_achieved_message">Osiągnąłeś swój cel %s!</string>
+
+    <string name="notifications_section">Powiadomienia</string>
+    <string name="practice_reminder">Przypomnienie o ćwiczeniach</string>
+    <string name="reminder_time_fmt">Codziennie o %s</string>
+    <string name="reminder_disabled">Wyłączone</string>
+    <string name="set_reminder_time">Ustaw godzinę przypomnienia</string>
+    <string name="daily_goal">Cel dzienny</string>
+    <string name="daily_goal_fmt">%d minut dziennie</string>
+    <string name="goal_notifications">Powiadomienia o celach</string>
+    <string name="goal_notifications_desc">Powiadom o osiągnięciu celu</string>
+    <string name="daily_goal_type_fmt">%d min dziennego celu</string>
+
+    <string name="loading">Ładowanie...</string>
+    <string name="app_section">Aplikacja</string>
+    <string name="practice_section">Ćwiczenia</string>
+    <string name="audio_section">Audio i Strojenie</string>
+    <string name="data_section">Zarządzanie Danymi</string>
+
+    <string name="skip">Pomiń</string>
+    <string name="back">Wstecz</string>
+    <string name="get_started">Zaczynajmy</string>
+    <string name="onboarding_welcome_title">Witaj w Guitar Tracker</string>
+    <string name="onboarding_welcome_desc">Twój osobisty towarzysz ćwiczeń do opanowania gitary. Śledź postępy, poprawiaj timing i osiągaj swoje cele.</string>
+    <string name="onboarding_practice_title">Śledź Ćwiczenia</string>
+    <string name="onboarding_practice_desc">Zapisuj każdą sesję ze szczegółowymi notatkami. Nagrywaj audio, śledź czas i monitoruj regularność.</string>
+    <string name="onboarding_metronome_title">Wbudowany Metronom</string>
+    <string name="onboarding_metronome_desc">Ćwicz z konfigurowalnym metronomem. Ustaw tempo, wybierz metrum i twórz własne wzorce akcentów.</string>
+    <string name="onboarding_tuner_title">Precyzyjny Stroik</string>
+    <string name="onboarding_tuner_desc">Utrzymuj gitarę idealnie nastrojoną dzięki dokładnemu stroikowi chromatycznemu. Obsługuje wiele presetów strojenia.</string>
+    <string name="onboarding_stats_title">Zobacz Swoje Postępy</string>
+    <string name="onboarding_stats_desc">Analizuj swoje nawyki ćwiczeń ze szczegółowymi statystykami. Zobacz cele tygodniowe, dokładność rytmu i historię.</string>
+
+    <string name="show_tutorial">Poradnik Aplikacji</string>
+    <string name="show_tutorial_desc">Poznaj wszystkie funkcje aplikacji</string>
+    <string name="tutorial_title">Przewodnik po Funkcjach</string>
+    <string name="tutorial_practice_title">🎸 Sesje Ćwiczeń</string>
+    <string name="tutorial_practice_content">• Rozpocznij sesję przyciskiem Play\n• Ustaw tempo suwakiem BPM (40-240)\n• Wybierz metrum (np. 4/4, 3/4, 6/8)\n• Kliknij koła by dostosować akcenty\n• Sesja automatycznie nagrywa grę\n• Historia dostępna w zakładce Statystyki</string>
+    <string name="tutorial_metronome_title">⏱️ Metronom</string>
+    <string name="tutorial_metronome_content">• Wizualny wskaźnik pokazuje aktualny beat\n• 1/4 = ćwierćnuty, 1/8 = ósemki\n• Klikaj koła: Normalny → Akcent → Wyciszony\n• Pierwszy beat jest zawsze akcentowany\n• Tempo synchronizuje się z nagraniem</string>
+    <string name="tutorial_tuner_title">🎵 Stroik</string>
+    <string name="tutorial_tuner_content">• Wybierz strunę by usłyszeć dźwięk\n• Zagraj strunę i obserwuj wskaźnik\n• Zielony = nastrojone, Żółty = blisko, Czerwony = rozstrojone\n• Dostosuj częstotliwość A4 w Ustawieniach (domyślnie 440Hz)\n• Wybierz notację # lub ♭ w Ustawieniach\n• Obsługuje strojenie standardowe i inne</string>
+    <string name="tutorial_stats_title">📊 Statystyki</string>
+    <string name="tutorial_stats_content">• Zobacz wykres postępów tygodniowych\n• Śledź całkowity czas ćwiczeń\n• Analizuj rytm z nagrań\n• Przeglądaj historię sesji z odtwarzaniem\n• Ustaw cele tygodniowe w Ustawieniach\n• Eksportuj dane do CSV jako kopię</string>
+    <string name="tutorial_tips_title">💡 Wskazówki</string>
+    <string name="tutorial_tips_content">• Ćwicz codziennie dla najlepszych efektów\n• Zacznij wolno i stopniowo zwiększaj tempo\n• Używaj analizy rytmu by poprawić timing\n• Włącz powiadomienia dla przypomnień\n• Skalibruj audio dla swojego urządzenia\n• Zdobywaj osiągnięcia ćwicząc regularnie</string>
+
+    <string name="achievements_title">Osiągnięcia</string>
+    <string name="achievement_unlocked">Odblokowano osiągnięcie!</string>
+    <string name="unlocked_on">Odblokowano %1$s</string>
+
+    <string name="achievement_first_session_title">Pierwsze Kroki</string>
+    <string name="achievement_first_session_desc">Ukończ swoją pierwszą sesję ćwiczeń</string>
+    <string name="achievement_week_streak_title">Wojownik Tygodnia</string>
+    <string name="achievement_week_streak_desc">Ćwicz codziennie przez 7 dni</string>
+    <string name="achievement_month_streak_title">Oddany Gitarzysta</string>
+    <string name="achievement_month_streak_desc">Ćwicz codziennie przez 30 dni</string>
+    <string name="achievement_hour_total_title">Dobry Początek</string>
+    <string name="achievement_hour_total_desc">Ćwicz łącznie przez 1 godzinę</string>
+    <string name="achievement_ten_hours_title">Zaangażowany</string>
+    <string name="achievement_ten_hours_desc">Ćwicz łącznie przez 10 godzin</string>
+    <string name="achievement_hundred_hours_title">Mistrz w Treningu</string>
+    <string name="achievement_hundred_hours_desc">Ćwicz łącznie przez 100 godzin</string>
+    <string name="achievement_metronome_master_title">Król Rytmu</string>
+    <string name="achievement_metronome_master_desc">Ukończ 50 sesji z metronomem</string>
+    <string name="achievement_speed_demon_title">Demon Prędkości</string>
+    <string name="achievement_speed_demon_desc">Ćwicz przy 200+ BPM</string>
+    <string name="achievement_goal_getter_title">Pogromca Celów</string>
+    <string name="achievement_goal_getter_desc">Osiągnij cel tygodniowy</string>
+    <string name="achievement_goal_crusher_title">Miażdżyciel Celów</string>
+    <string name="achievement_goal_crusher_desc">Osiągnij cel tygodniowy 10 razy</string>
+    <string name="achievement_variety_player_title">Różnorodny Gracz</string>
+    <string name="achievement_variety_player_desc">Ćwicz 5 różnych typów ćwiczeń</string>
+    <string name="achievement_early_bird_title">Ranny Ptaszek</string>
+    <string name="achievement_early_bird_desc">Ćwicz przed 8:00 pięć razy</string>
+    <string name="achievement_night_owl_title">Nocna Sowa</string>
+    <string name="achievement_night_owl_desc">Ćwicz po 22:00 pięć razy</string>
+    <string name="achievement_perfect_pitch_title">Idealny Słuch</string>
+    <string name="achievement_perfect_pitch_desc">Dostrój gitarę idealnie 100 razy</string>
+
+    <string name="haptic_feedback">Wibracje</string>
+    <string name="haptic_feedback_desc">Wibracje przy uderzeniach metronomu</string>
+
+    <string name="dashboard_weekly_goal">Cel Tygodniowy</string>
+    <string name="dashboard_streak_fmt">%d dni z rzędu</string>
+    <string name="dashboard_streak_label">Passa</string>
+</resources>

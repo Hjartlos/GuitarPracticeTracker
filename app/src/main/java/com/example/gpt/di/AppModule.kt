@@ -1,9 +1,13 @@
 package com.example.gpt.di
 
-import com.example.gpt.audio.AudioEngine
+import android.content.Context
+import com.example.gpt.core.audio.AudioEngine
+import com.example.gpt.core.haptic.HapticManager
+import com.example.gpt.data.repository.SettingsRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -13,7 +17,17 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAudioEngine(): AudioEngine {
-        return AudioEngine()
+    fun provideAudioEngine(): AudioEngine = AudioEngine()
+
+    @Provides
+    @Singleton
+    fun provideSettingsRepository(@ApplicationContext context: Context): SettingsRepository {
+        return SettingsRepository(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideHapticManager(@ApplicationContext context: Context): HapticManager {
+        return HapticManager(context)
     }
 }

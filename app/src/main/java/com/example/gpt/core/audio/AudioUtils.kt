@@ -1,4 +1,4 @@
-package com.example.gpt.audio
+package com.example.gpt.core.audio
 
 import kotlin.math.log2
 import kotlin.math.roundToInt
@@ -14,10 +14,13 @@ data class TunerResult(
 object AudioUtils {
     private val noteNames = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
+    @Volatile
+    var referenceFrequency: Float = 440f
+
     fun processPitch(pitchInHz: Float): TunerResult {
         if (pitchInHz == -1f || pitchInHz < 20f) return TunerResult()
 
-        val n = 69 + 12 * log2(pitchInHz / 440.0)
+        val n = 69 + 12 * log2(pitchInHz / referenceFrequency.toDouble())
         val midiNote = n.roundToInt()
 
         val cents = ((n - midiNote) * 100).toInt()

@@ -2,8 +2,9 @@ package com.example.gpt.di
 
 import android.content.Context
 import androidx.room.Room
-import com.example.gpt.data.AppDatabase
-import com.example.gpt.data.SessionDao
+import com.example.gpt.data.local.AppDatabase
+import com.example.gpt.data.local.dao.AchievementDao
+import com.example.gpt.data.local.dao.SessionDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -28,7 +29,14 @@ object DatabaseModule {
     }
 
     @Provides
+    @Singleton
     fun provideSessionDao(database: AppDatabase): SessionDao {
         return database.sessionDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideAchievementDao(database: AppDatabase): AchievementDao {
+        return database.achievementDao()
     }
 }
