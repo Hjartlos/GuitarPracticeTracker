@@ -221,7 +221,6 @@ class PracticeViewModel @Inject constructor(
                 _exerciseType.value = getApplication<Application>().getString(R.string.ex_scales)
             }
 
-            startMonitoring()
         }
         viewModelScope.launch {
             _currentLanguage
@@ -340,7 +339,7 @@ class PracticeViewModel @Inject constructor(
             val detectedLatencies = mutableListOf<Long>()
             val iterations = 5
 
-            val triggerThreshold = 30f
+            val triggerThreshold = 10f
 
             for (i in 1..iterations) {
                 withContext(Dispatchers.Main) {
@@ -351,10 +350,10 @@ class PracticeViewModel @Inject constructor(
 
                 val startTime = System.nanoTime()
 
-                ToneGenerator.playCalibrationTone(1000f, 50)
+                ToneGenerator.playCalibrationTone(1000f, 100)
 
                 var beepDetected = false
-                val timeoutMs = 500L
+                val timeoutMs = 800L
                 val loopStart = System.currentTimeMillis()
 
                 while (System.currentTimeMillis() - loopStart < timeoutMs) {
@@ -363,9 +362,11 @@ class PracticeViewModel @Inject constructor(
                         val latencyNs = endTime - startTime
                         val latencyMs = latencyNs / 1_000_000
 
-                        detectedLatencies.add(latencyMs)
-                        beepDetected = true
-                        break
+                        if (latencyMs > 10) {
+                            detectedLatencies.add(latencyMs)
+                            beepDetected = true
+                            break
+                        }
                     }
                     delay(5)
                 }
@@ -385,7 +386,7 @@ class PracticeViewModel @Inject constructor(
                     } else sorted
 
                     val avgLatency = validData.average().toInt()
-                    val finalLatency = avgLatency.coerceAtLeast(0)
+                    val finalLatency = (avgLatency - 20).coerceAtLeast(0)
 
                     setLatencyOffset(finalLatency)
 
@@ -416,88 +417,6 @@ class PracticeViewModel @Inject constructor(
         _isTapCalibrating.value = false
         _isLatencyTesting.value = false
         _tapCalibrationProgress.value = ""
-    }
-//    fun startTapCalibration() {
-//        if (_isTapCalibrating.value) return
-//
-//        val context = getApplication<Application>()
-//        _isTapCalibrating.value = true
-//        _isLatencyTesting.value = true
-//        _tapCalibrationBeat.value = 0
-//        tapTimestamps.clear()
-//        clickTimestamps.clear()
-//
-//        _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_ready)
-//
-//        viewModelScope.launch(Dispatchers.Default) {
-//            delay(1500)
-//
-//            _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_listen)
-//            val interval = 750L
-//            repeat(8) { beat ->
-//                val clickTime = System.currentTimeMillis()
-//                clickTimestamps.add(clickTime)
-//
-//                withContext(Dispatchers.Main) {
-//                    _tapCalibrationBeat.value = beat + 1
-//                }
-//
-//                ToneGenerator.playCalibrationTone(880f, 60)
-//                delay(interval)
-//            }
-//            delay(1000)
-//
-//            withContext(Dispatchers.Main) {
-//                calculateTapLatency(context)
-//            }
-//        }
-//    }
-//    fun registerCalibrationTap() {
-//        if (!_isTapCalibrating.value) return
-//
-//        val tapTime = System.currentTimeMillis()
-//        tapTimestamps.add(tapTime)
-//    }
-
-    private fun calculateTapLatency(context: Application) {
-        if (tapTimestamps.size < 3) {
-            _latencyTestResult.value = context.getString(R.string.tap_calibration_not_enough)
-            finishTapCalibration()
-            return
-        }
-
-        val differences = mutableListOf<Long>()
-
-        for (tapTime in tapTimestamps) {
-            val closestClick = clickTimestamps.minByOrNull { kotlin.math.abs(it - tapTime) }
-
-            if (closestClick != null) {
-                val diff = tapTime - closestClick
-                if (diff in -200..1000) {
-                    differences.add(diff)
-                }
-            }
-        }
-
-        if (differences.isEmpty()) {
-            _latencyTestResult.value = context.getString(R.string.tap_calibration_failed)
-            finishTapCalibration()
-            return
-        }
-
-        val sortedDiffs = differences.sorted()
-        val medianDiff = sortedDiffs[sortedDiffs.size / 2]
-
-        val finalLatency = medianDiff.coerceAtLeast(0L).toInt()
-
-        android.util.Log.d("TapCalibration", "Raw diffs: $sortedDiffs")
-        android.util.Log.d("TapCalibration", "Calculated Latency: $finalLatency")
-
-        setLatencyOffset(finalLatency)
-        _latencyTestResult.value = context.getString(R.string.latency_measured, finalLatency)
-        _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_done)
-
-        finishTapCalibration()
     }
 
     fun setInputThreshold(value: Float) {

@@ -506,9 +506,11 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
 
                 Slider(
                     value = sliderThreshold,
-                    onValueChange = { viewModel.setInputThreshold((it * 0.2f).coerceAtLeast(0.001f)) },
+                    onValueChange = {
+                        viewModel.setInputThreshold((it * 0.2f).coerceAtLeast(0.001f))
+                    },
                     valueRange = 0f..1f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
                 Text(
                     text = stringResource(R.string.mic_sensitivity_expl),
@@ -534,9 +536,10 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                "Trzymaj telefon blisko głośnika",
+                                stringResource(R.string.calibration_hold_near),
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha=0.7f)
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha=0.7f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
                     }
@@ -565,7 +568,7 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     value = latencyOffset.toFloat(),
                     onValueChange = { viewModel.setLatencyOffset(it.toInt()) },
                     valueRange = 0f..300f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
                 Text(
                     text = stringResource(R.string.latency_expl),
@@ -584,7 +587,12 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     value = metronomeOffset.toFloat(),
                     onValueChange = { viewModel.setMetronomeOffset(it.toInt()) },
                     valueRange = 0f..200f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                )
+                Text(
+                    text = stringResource(R.string.metronome_sync_expl),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
@@ -601,7 +609,7 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     value = 1f - margin,
                     onValueChange = { viewModel.setRhythmMargin(1f - it) },
                     valueRange = 0f..1f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
                 Text(
                     text = stringResource(R.string.rhythm_strictness_expl),

@@ -451,7 +451,10 @@ private fun OnboardingCalibrationContent(
 
                 Slider(
                     value = sliderThreshold,
-                    onValueChange = { viewModel.setInputThreshold((it * 0.2f).coerceAtLeast(0.001f)) },
+                    onValueChange = { sliderValue ->
+                        val newThreshold = (sliderValue * 0.2f).coerceAtLeast(0.001f)
+                        viewModel.setInputThreshold(newThreshold)
+                    },
                     valueRange = 0f..1f,
                     colors = SliderDefaults.colors(
                         thumbColor = page.accentColor,

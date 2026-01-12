@@ -239,12 +239,12 @@
     <string name="achievement_perfect_pitch_desc">Dostrój gitarę idealnie 100 razy</string>
     <string name="auto_calibrate_btn">Prawdziwa Auto-Kalibracja</string>
     <string name="tap_calibration_ready">Przygotuj się...</string>
-    <string name="tap_calibration_listen">Słuchanie sygnałów (nie dotykaj)...</string>
+    <string name="tap_calibration_listen">Słuchanie... (nie dotykaj)</string>
     <string name="tap_calibration_done">Kalibracja zakończona!</string>
     <string name="tap_calibration_failed">Nie wykryto dźwięku. Podgłośnij telefon.</string>
     <string name="tap_calibration_not_enough">Błąd pomiaru. Spróbuj ponownie.</string>
     <string name="calibration_step_fmt">Pomiar %1$d z %2$d...</string>
-    <string name="calibration_hold_near">Trzymaj telefon blisko głośnika</string>
+    <string name="calibration_hold_near">Upewnij się, że telefon jest podgłoszony</string>
     <string name="mic_sensitivity_label">Czułość Mikrofonu (Threshold)</string>
-    <string name="mic_sensitivity_expl">100%% = Najwyższa czułość. Ustaw tak, aby pasek reagował tylko na dźwięk instrumentu, a nie na szum.</string>
+    <string name="mic_sensitivity_expl">100%% = Wysoka czułość (wykrywa ciche dźwięki). Ustaw tak, by pasek reagował na grę, a ignorował ciszę.</string>
 </resources>
