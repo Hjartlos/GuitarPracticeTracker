@@ -133,6 +133,8 @@ class PracticeViewModel @Inject constructor(
     private val _isCountingIn = MutableStateFlow(false)
     val isCountingIn = _isCountingIn.asStateFlow()
 
+    private var calibrationJob: Job? = null
+
     private val _elapsedSeconds = MutableStateFlow(0)
     val elapsedSeconds = _elapsedSeconds.asStateFlow()
 
@@ -319,49 +321,143 @@ class PracticeViewModel @Inject constructor(
         testMetronomeJob?.cancel()
     }
     fun runLatencyAutoCalibration() {
-        startTapCalibration()
+        startAcousticCalibration()
     }
-    fun startTapCalibration() {
+
+    private fun startAcousticCalibration() {
         if (_isTapCalibrating.value) return
 
         val context = getApplication<Application>()
         _isTapCalibrating.value = true
         _isLatencyTesting.value = true
-        _tapCalibrationBeat.value = 0
-        tapTimestamps.clear()
-        clickTimestamps.clear()
-
         _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_ready)
 
-        viewModelScope.launch(Dispatchers.Default) {
-            delay(1500)
+        startMonitoring()
 
-            _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_listen)
-            val interval = 750L
-            repeat(8) { beat ->
-                val clickTime = System.currentTimeMillis()
-                clickTimestamps.add(clickTime)
-
-                withContext(Dispatchers.Main) {
-                    _tapCalibrationBeat.value = beat + 1
-                }
-
-                ToneGenerator.playCalibrationTone(880f, 60)
-                delay(interval)
-            }
+        calibrationJob = viewModelScope.launch(Dispatchers.Default) {
             delay(1000)
 
+            val detectedLatencies = mutableListOf<Long>()
+            val iterations = 5
+
+            val triggerThreshold = 30f
+
+            for (i in 1..iterations) {
+                withContext(Dispatchers.Main) {
+                    _tapCalibrationProgress.value = context.getString(R.string.calibration_step_fmt, i, iterations)
+                }
+
+                delay(500)
+
+                val startTime = System.nanoTime()
+
+                ToneGenerator.playCalibrationTone(1000f, 50)
+
+                var beepDetected = false
+                val timeoutMs = 500L
+                val loopStart = System.currentTimeMillis()
+
+                while (System.currentTimeMillis() - loopStart < timeoutMs) {
+                    if (amplitude.value > triggerThreshold) {
+                        val endTime = System.nanoTime()
+                        val latencyNs = endTime - startTime
+                        val latencyMs = latencyNs / 1_000_000
+
+                        detectedLatencies.add(latencyMs)
+                        beepDetected = true
+                        break
+                    }
+                    delay(5)
+                }
+
+                if (!beepDetected) {
+                    android.util.Log.w("Calibration", "Beep not detected in iteration $i")
+                }
+
+                delay(400)
+            }
+
             withContext(Dispatchers.Main) {
-                calculateTapLatency(context)
+                if (detectedLatencies.isNotEmpty()) {
+                    val sorted = detectedLatencies.sorted()
+                    val validData = if (sorted.size >= 3) {
+                        sorted.subList(1, sorted.size - 1)
+                    } else sorted
+
+                    val avgLatency = validData.average().toInt()
+                    val finalLatency = avgLatency.coerceAtLeast(0)
+
+                    setLatencyOffset(finalLatency)
+
+                    _latencyTestResult.value = context.getString(R.string.latency_measured, finalLatency)
+                    _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_done)
+                } else {
+                    _latencyTestResult.value = context.getString(R.string.tap_calibration_failed)
+                    _tapCalibrationProgress.value = context.getString(R.string.latency_failed)
+                }
+
+                finishTapCalibration()
             }
         }
     }
-    fun registerCalibrationTap() {
-        if (!_isTapCalibrating.value) return
 
-        val tapTime = System.currentTimeMillis()
-        tapTimestamps.add(tapTime)
+    private fun finishTapCalibration() {
+        viewModelScope.launch {
+            delay(2000)
+            _isTapCalibrating.value = false
+            _isLatencyTesting.value = false
+            _latencyTestResult.value = null
+            _tapCalibrationProgress.value = ""
+        }
     }
+
+    fun cancelTapCalibration() {
+        calibrationJob?.cancel()
+        _isTapCalibrating.value = false
+        _isLatencyTesting.value = false
+        _tapCalibrationProgress.value = ""
+    }
+//    fun startTapCalibration() {
+//        if (_isTapCalibrating.value) return
+//
+//        val context = getApplication<Application>()
+//        _isTapCalibrating.value = true
+//        _isLatencyTesting.value = true
+//        _tapCalibrationBeat.value = 0
+//        tapTimestamps.clear()
+//        clickTimestamps.clear()
+//
+//        _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_ready)
+//
+//        viewModelScope.launch(Dispatchers.Default) {
+//            delay(1500)
+//
+//            _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_listen)
+//            val interval = 750L
+//            repeat(8) { beat ->
+//                val clickTime = System.currentTimeMillis()
+//                clickTimestamps.add(clickTime)
+//
+//                withContext(Dispatchers.Main) {
+//                    _tapCalibrationBeat.value = beat + 1
+//                }
+//
+//                ToneGenerator.playCalibrationTone(880f, 60)
+//                delay(interval)
+//            }
+//            delay(1000)
+//
+//            withContext(Dispatchers.Main) {
+//                calculateTapLatency(context)
+//            }
+//        }
+//    }
+//    fun registerCalibrationTap() {
+//        if (!_isTapCalibrating.value) return
+//
+//        val tapTime = System.currentTimeMillis()
+//        tapTimestamps.add(tapTime)
+//    }
 
     private fun calculateTapLatency(context: Application) {
         if (tapTimestamps.size < 3) {
@@ -404,25 +500,6 @@ class PracticeViewModel @Inject constructor(
         finishTapCalibration()
     }
 
-    private fun finishTapCalibration() {
-        viewModelScope.launch {
-            delay(2500)
-            _isTapCalibrating.value = false
-            _isLatencyTesting.value = false
-            _tapCalibrationBeat.value = 0
-            _latencyTestResult.value = null
-            _tapCalibrationProgress.value = ""
-        }
-    }
-
-    fun cancelTapCalibration() {
-        _isTapCalibrating.value = false
-        _isLatencyTesting.value = false
-        _tapCalibrationBeat.value = 0
-        _tapCalibrationProgress.value = ""
-        tapTimestamps.clear()
-        clickTimestamps.clear()
-    }
     fun setInputThreshold(value: Float) {
         _inputThreshold.value = value
         audioEngine.currentThreshold = value

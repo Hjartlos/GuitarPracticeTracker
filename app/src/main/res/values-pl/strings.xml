@@ -82,25 +82,17 @@
     <string name="play_click">Testuj Dźwięk</string>
     <string name="low_noise">Cicha okolica</string>
     <string name="high_sensitive">Głośna okolica</string>
-    <string name="mic_sensitivity_label">Czułość Mikrofonu</string>
     <string name="mic_sensitivity_fmt">Czułość: %d%%</string>
-    <string name="mic_sensitivity_expl">Ustaw próg tuż powyżej szumu tła. Pasek powinien reagować TYLKO na grę instrumentu.</string>
     <string name="latency_label">Kompensacja Opóźnienia (Latencja)</string>
     <string name="latency_comp_fmt">Opóźnienie Audio (%dms)</string>
     <string name="latency_expl">Kompensuje opóźnienie sprzętowe. Zwiększ, jeśli Analiza Rytmu pokazuje, że grasz "Za późno".</string>
     <string name="manual_calib_title">Dostosowanie Ręczne</string>
     <string name="manual_offset">Dostosuj ręcznie:</string>
-    <string name="auto_calibrate_btn">Auto-Kalibracja (Pętla)</string>
     <string name="calibrating">Kalibracja...</string>
     <string name="latency_preparing">Przygotowanie...</string>
     <string name="latency_listen">Słucham...</string>
     <string name="latency_measured">Zmierzono: %dms</string>
     <string name="latency_failed">Błąd. Za cicho?</string>
-    <string name="tap_calibration_ready">Przygotuj się do stukania...</string>
-    <string name="tap_calibration_listen">Stukaj w rytm!</string>
-    <string name="tap_calibration_not_enough">Za mało stuknięć. Spróbuj ponownie.</string>
-    <string name="tap_calibration_failed">Kalibracja nieudana. Spróbuj ponownie.</string>
-    <string name="tap_calibration_done">Kalibracja zakończona!</string>
     <string name="tap_calibrate_btn">Kalibracja Stukaniem</string>
     <string name="tap_here">STUKNIJ TUTAJ</string>
     <string name="metronome_sync_title">Synchronizacja Metronomu</string>
@@ -245,4 +237,14 @@
     <string name="achievement_night_owl_desc">Ćwicz po 22:00 w 5 różnych dni (min. 5 minut)</string>
     <string name="achievement_perfect_pitch_title">Idealny Słuch</string>
     <string name="achievement_perfect_pitch_desc">Dostrój gitarę idealnie 100 razy</string>
+    <string name="auto_calibrate_btn">Prawdziwa Auto-Kalibracja</string>
+    <string name="tap_calibration_ready">Przygotuj się...</string>
+    <string name="tap_calibration_listen">Słuchanie sygnałów (nie dotykaj)...</string>
+    <string name="tap_calibration_done">Kalibracja zakończona!</string>
+    <string name="tap_calibration_failed">Nie wykryto dźwięku. Podgłośnij telefon.</string>
+    <string name="tap_calibration_not_enough">Błąd pomiaru. Spróbuj ponownie.</string>
+    <string name="calibration_step_fmt">Pomiar %1$d z %2$d...</string>
+    <string name="calibration_hold_near">Trzymaj telefon blisko głośnika</string>
+    <string name="mic_sensitivity_label">Czułość Mikrofonu (Threshold)</string>
+    <string name="mic_sensitivity_expl">100%% = Najwyższa czułość. Ustaw tak, aby pasek reagował tylko na dźwięk instrumentu, a nie na szum.</string>
 </resources>

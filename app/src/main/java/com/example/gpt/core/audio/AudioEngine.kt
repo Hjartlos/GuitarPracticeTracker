@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.util.Log
 import be.tarsos.dsp.AudioDispatcher
 import be.tarsos.dsp.AudioEvent
@@ -64,7 +65,11 @@ class AudioEngine {
         val audioBufferSize = maxOf(BUFFER_SIZE * 2, minBufferSize)
 
         try {
-            val audioSource = MediaRecorder.AudioSource.VOICE_RECOGNITION
+            val audioSource = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                MediaRecorder.AudioSource.UNPROCESSED
+            } else {
+                MediaRecorder.AudioSource.MIC
+            }
 
             audioRecord = AudioRecord(
                 audioSource,
@@ -75,7 +80,18 @@ class AudioEngine {
             )
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e("AudioEngine", "AudioRecord failed to initialize")
+                Log.e("AudioEngine", "AudioRecord failed to initialize. Trying MIC fallback.")
+                audioRecord = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    audioBufferSize
+                )
+            }
+
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e("AudioEngine", "AudioRecord MIC fallback failed.")
                 return
             }
 
@@ -93,7 +109,7 @@ class AudioEngine {
             val buffer = audioEvent.floatBuffer
             val rawRms = calculateRMS(buffer)
 
-            _amplitude.value = rawRms * 100
+            _amplitude.value = (sqrt(rawRms) * 300).coerceAtMost(100f)
 
             if (ToneGenerator.isPlaying.value) {
                 return@PitchDetectionHandler

@@ -82,25 +82,17 @@
     <string name="play_click">Test Sound</string>
     <string name="low_noise">Quiet environment</string>
     <string name="high_sensitive">Noisy environment</string>
-    <string name="mic_sensitivity_label">Microphone Sensitivity</string>
     <string name="mic_sensitivity_fmt">Mic Sensitivity: %d%%</string>
-    <string name="mic_sensitivity_expl">Set the threshold just above background noise. The bar should only move when you play your instrument.</string>
     <string name="latency_label">Input Latency Compensation</string>
     <string name="latency_comp_fmt">Audio Latency (%dms)</string>
     <string name="latency_expl">Compensates for hardware delay. If Rhythm Analysis consistently says you are "Late", increase this value.</string>
     <string name="manual_calib_title">Manual Adjustment</string>
     <string name="manual_offset">Fine-tune manually:</string>
-    <string name="auto_calibrate_btn">Auto Calibrate (Loopback)</string>
     <string name="calibrating">Calibrating...</string>
     <string name="latency_preparing">Preparing...</string>
     <string name="latency_listen">Listen &amp; Wait...</string>
     <string name="latency_measured">Measured: %dms</string>
     <string name="latency_failed">Failed. Too quiet?</string>
-    <string name="tap_calibration_ready">Get ready to tap...</string>
-    <string name="tap_calibration_listen">Tap along with the beat!</string>
-    <string name="tap_calibration_not_enough">Not enough taps. Try again.</string>
-    <string name="tap_calibration_failed">Calibration failed. Try again.</string>
-    <string name="tap_calibration_done">Calibration complete!</string>
     <string name="tap_calibrate_btn">Tap Calibration</string>
     <string name="tap_here">TAP HERE</string>
     <string name="metronome_sync_title">Metronome Sync (Visual/Haptic)</string>
@@ -245,4 +237,14 @@
     <string name="achievement_night_owl_desc">Practice after 10 PM on 5 different days (min. 5 mins)</string>
     <string name="achievement_perfect_pitch_title">Perfect Pitch</string>
     <string name="achievement_perfect_pitch_desc">Tune your guitar perfectly 100 times</string>
+    <string name="auto_calibrate_btn">True Auto-Calibration</string>
+    <string name="tap_calibration_ready">Get ready...</string>
+    <string name="tap_calibration_listen">Listening to signals (don\'t touch)...</string>
+    <string name="tap_calibration_done">Calibration complete!</string>
+    <string name="tap_calibration_failed">No sound detected. Turn up volume.</string>
+    <string name="tap_calibration_not_enough">Measurement error. Try again.</string>
+    <string name="calibration_step_fmt">Measurement %1$d of %2$d...</string>
+    <string name="calibration_hold_near">Keep phone near the speaker</string>
+    <string name="mic_sensitivity_label">Mic Sensitivity (Threshold)</string>
+    <string name="mic_sensitivity_expl">100%% = Max sensitivity. Set so the bar only moves when you play, ignoring background noise.</string>
 </resources>

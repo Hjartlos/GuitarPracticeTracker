@@ -486,18 +486,18 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    val progress = (animatedAmplitude / 60f).coerceIn(0f, 1f)
+                    val progress = (animatedAmplitude / 100f).coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
                         modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
-                        color = if (progress > 0.5f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                        color = if (progress > (threshold * 2)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
                         trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                     )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val sliderThreshold = ((0.5f - threshold) / 0.45f).coerceIn(0f, 1f)
-                val sensitivityPercent = (sliderThreshold * 100).toInt()
+                val sliderThreshold = (threshold / 0.2f).coerceIn(0f, 1f)
+                val sensitivityPercent = ((1f - sliderThreshold) * 100).toInt()
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.mic_sensitivity_label), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
@@ -506,9 +506,9 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
 
                 Slider(
                     value = sliderThreshold,
-                    onValueChange = { viewModel.setInputThreshold(0.5f - (it * 0.45f)) },
+                    onValueChange = { viewModel.setInputThreshold((it * 0.2f).coerceAtLeast(0.001f)) },
                     valueRange = 0f..1f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
                 )
                 Text(
                     text = stringResource(R.string.mic_sensitivity_expl),
@@ -533,12 +533,16 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
-                            Button(onClick = { viewModel.registerCalibrationTap() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.tap_here)) }
+                            Text(
+                                "Trzymaj telefon blisko głośnika",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha=0.7f)
+                            )
                         }
                     }
                 } else {
                     Button(
-                        onClick = { viewModel.startTapCalibration() },
+                        onClick = { viewModel.runLatencyAutoCalibration() },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         enabled = !isLatencyTesting,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
@@ -561,7 +565,7 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     value = latencyOffset.toFloat(),
                     onValueChange = { viewModel.setLatencyOffset(it.toInt()) },
                     valueRange = 0f..300f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
                 )
                 Text(
                     text = stringResource(R.string.latency_expl),
@@ -580,28 +584,24 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     value = metronomeOffset.toFloat(),
                     onValueChange = { viewModel.setMetronomeOffset(it.toInt()) },
                     valueRange = 0f..200f,
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
-                )
-                Text(
-                    text = stringResource(R.string.metronome_sync_expl),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
 
                 Text(stringResource(R.string.rhythm_strictness_title), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                val sliderMargin = 1f - ((margin - 0.1f) / 0.4f)
-                val strictnessPercent = (sliderMargin * 100).toInt()
+
+                val strictnessPercent = ((1f - margin) * 100).toInt()
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.rhythm_strictness_fmt, strictnessPercent), style = MaterialTheme.typography.bodyMedium)
                 }
 
                 Slider(
-                    value = sliderMargin.coerceIn(0f, 1f),
-                    onValueChange = { viewModel.setRhythmMargin(0.5f - (it * 0.4f)) },
-                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
+                    value = 1f - margin,
+                    onValueChange = { viewModel.setRhythmMargin(1f - it) },
+                    valueRange = 0f..1f,
+                    colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
                 )
                 Text(
                     text = stringResource(R.string.rhythm_strictness_expl),
