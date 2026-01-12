@@ -62,11 +62,17 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
     val tuningError by viewModel.tuningError.collectAsState()
 
     val isMetronomeEnabled by viewModel.isMetronomeEnabled.collectAsState()
+
+    val isRhythmAnalysisEnabled by viewModel.isRhythmAnalysisEnabled.collectAsState()
+
     val metronomeBpm by viewModel.metronomeBpm.collectAsState()
     val timeSignature by viewModel.timeSignature.collectAsState()
 
     val beatPattern by viewModel.beatPattern.collectAsState()
     val currentPlayingBeat by viewModel.currentPlayingBeat.collectAsState()
+    val isMetronomePlaying by viewModel.isMetronomePlaying.collectAsState()
+
+    val amplitude by viewModel.amplitude.collectAsState()
 
     val scrollState = rememberScrollState()
     val isDark = isSystemInDarkTheme()
@@ -237,7 +243,12 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(R.string.metronome), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    text = stringResource(R.string.metronome),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             }
 
                             Switch(
@@ -251,7 +262,59 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                         }
 
                         if (isMetronomeEnabled) {
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Analytics,
+                                        contentDescription = null,
+                                        tint = if (isRhythmAnalysisEnabled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = stringResource(R.string.enable_rhythm_analysis),
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = if (isRhythmAnalysisEnabled)
+                                                stringResource(R.string.rhythm_analysis_desc_on)
+                                            else
+                                                stringResource(R.string.rhythm_analysis_desc_off),
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Switch(
+                                    checked = isRhythmAnalysisEnabled,
+                                    onCheckedChange = { viewModel.toggleRhythmAnalysis(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedTrackColor = MaterialTheme.colorScheme.secondary,
+                                        checkedThumbColor = MaterialTheme.colorScheme.onSecondary
+                                    ),
+                                    modifier = Modifier.scale(0.9f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            val parts = timeSignature.split("/")
+                            val currentBeats = parts.getOrNull(0)?.toIntOrNull() ?: 4
+                            val currentNoteValue = parts.getOrNull(1)?.toIntOrNull() ?: 4
+
+                            val maxSliderValue = if (currentNoteValue == 8) 150f else 300f
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -264,12 +327,9 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                             Slider(
                                 value = metronomeBpm.toFloat(),
                                 onValueChange = { viewModel.setMetronomeBpm(it.toInt()) },
-                                valueRange = 30f..300f
+                                valueRange = 30f..maxSliderValue,
+                                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                             )
-
-                            val parts = timeSignature.split("/")
-                            val currentBeats = parts.getOrNull(0)?.toIntOrNull() ?: 4
-                            val currentNoteValue = parts.getOrNull(1)?.toIntOrNull() ?: 4
 
                             var beatsInput by remember(currentBeats) { mutableStateOf(currentBeats.toString()) }
 
@@ -309,7 +369,7 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                                 )
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf(4, 8, 16).forEach { value ->
+                                    listOf(4, 8).forEach { value ->
                                         FilterChip(
                                             selected = currentNoteValue == value,
                                             onClick = { viewModel.setMetronomeTimeSignature("$currentBeats/$value") },

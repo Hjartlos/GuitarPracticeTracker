@@ -7,13 +7,15 @@ import be.tarsos.dsp.onsets.ComplexOnsetDetector
 import java.io.File
 import java.io.FileInputStream
 import kotlin.math.abs
+import kotlin.math.min
 import kotlin.math.round
 
 data class RhythmHit(
     val timeSeconds: Double,
     val beatNumber: Int,
     val deviationMs: Int,
-    val isOnBeat: Boolean
+    val isOnBeat: Boolean,
+    val noteType: String = "Quarter"
 )
 
 data class AnalysisResult(
@@ -32,30 +34,33 @@ class RhythmAnalyzer {
         private const val SAMPLE_RATE = 44100f
         private const val BUFFER_SIZE = 1024
         private const val HOP_SIZE = 512
-        private const val MIN_ONSET_INTERVAL = 0.08
-        private const val MIN_FILE_SIZE = 1000L
-        private const val MIN_ONSETS_REQUIRED = 4
+        private const val METRONOME_BLIND_WINDOW = 0.08
     }
 
-    fun analyze(audioFile: File, targetBpm: Int = 0, threshold: Float = 0.15f, errorMargin: Float = 0.3f, latencyMs: Int = 0): AnalysisResult {
-        if (!audioFile.exists() || audioFile.length() < MIN_FILE_SIZE) {
-            return if (targetBpm > 0) AnalysisResult(targetBpm, 0) else AnalysisResult(0, 0)
-        }
+    fun analyze(
+        audioFile: File,
+        targetBpm: Int,
+        threshold: Float,
+        errorMargin: Float,
+        latencyMs: Int,
+        metronomeClicksSeconds: List<Double> = emptyList()
+    ): AnalysisResult {
+        if (!audioFile.exists() || audioFile.length() < 1000) return AnalysisResult(0, 0)
 
-        val onsets = mutableListOf<Double>()
+        val rawOnsets = mutableListOf<Pair<Double, Double>>()
+        val latencySec = latencyMs / 1000.0
 
         try {
-            val fileStream = FileInputStream(audioFile)
-            val dispatcher = AudioDispatcher(UniversalAudioInputStream(fileStream, run {
-                TarsosDSPAudioFormat(SAMPLE_RATE, 16, 1, true, false)
-            }), BUFFER_SIZE, HOP_SIZE)
+            val format = TarsosDSPAudioFormat(SAMPLE_RATE, 16, 1, true, false)
+            val stream = UniversalAudioInputStream(FileInputStream(audioFile), format)
+            val dispatcher = AudioDispatcher(stream, BUFFER_SIZE, HOP_SIZE)
 
             val onsetDetector = ComplexOnsetDetector(BUFFER_SIZE, threshold.toDouble())
 
-            onsetDetector.setHandler { time, _ ->
-                val correctedTime = time - (latencyMs / 1000.0)
-                if (correctedTime >= 0) {
-                    onsets.add(correctedTime)
+            onsetDetector.setHandler { time, salience ->
+                val adjustedTime = time - latencySec
+                if (adjustedTime > 0) {
+                    rawOnsets.add(adjustedTime to salience)
                 }
             }
 
@@ -63,107 +68,116 @@ class RhythmAnalyzer {
             dispatcher.run()
         } catch (e: Exception) {
             e.printStackTrace()
-            return AnalysisResult(targetBpm, 0)
+            return AnalysisResult(0, 0)
         }
 
-        return calculateRhythm(onsets, targetBpm, errorMargin)
-    }
+        val averageSalience = if (rawOnsets.isNotEmpty()) {
+            rawOnsets.map { it.second }.average()
+        } else 0.0
 
-    private fun calculateRhythm(onsets: List<Double>, targetBpm: Int, errorMargin: Float): AnalysisResult {
-        val filteredOnsets = mutableListOf<Double>()
-        if (onsets.isNotEmpty()) {
-            filteredOnsets.add(onsets[0])
-            for (i in 1 until onsets.size) {
-                if (onsets[i] - onsets[i-1] > MIN_ONSET_INTERVAL) {
-                    filteredOnsets.add(onsets[i])
+        val filteredOnsets = if (metronomeClicksSeconds.isNotEmpty()) {
+            rawOnsets.filter { (onsetTime, onsetSalience) ->
+                val isInsideMetronomeWindow = metronomeClicksSeconds.any { clickTime ->
+                    abs(onsetTime - clickTime) < METRONOME_BLIND_WINDOW
                 }
-            }
+
+                if (isInsideMetronomeWindow) {
+                    onsetSalience > (averageSalience * 0.6)
+                } else {
+                    true
+                }
+            }.map { it.first }
+        } else {
+            rawOnsets.map { it.first }
         }
 
-        if (filteredOnsets.size < MIN_ONSETS_REQUIRED) {
-            return if (targetBpm > 0) AnalysisResult(targetBpm, 0) else AnalysisResult(0, 0)
-        }
+        if (filteredOnsets.isEmpty()) return AnalysisResult(0, 0)
 
-        val intervals = mutableListOf<Double>()
-        for (i in 0 until filteredOnsets.size - 1) {
-            intervals.add(filteredOnsets[i+1] - filteredOnsets[i])
-        }
-
-        val sessionDuration = if (filteredOnsets.isNotEmpty()) filteredOnsets.last() else 0.0
+        val detailedHits = mutableListOf<RhythmHit>()
+        var hitsOnBeat = 0
+        val sessionDuration = filteredOnsets.lastOrNull() ?: 0.0
 
         if (targetBpm > 0) {
-            val beatDuration = 60.0 / targetBpm
-            val subdivisions = listOf(1.0, 0.5, 0.333, 0.25)
-
-            val hitMarginSeconds = beatDuration * 0.2
-
-            var totalError = 0.0
-
-            for (interval in intervals) {
-                var bestSubdivisionError = Double.MAX_VALUE
-                for (sub in subdivisions) {
-                    val expectedInterval = beatDuration * sub
-                    val error = abs(interval - expectedInterval)
-                    val relativeError = error / expectedInterval
-                    if (relativeError < bestSubdivisionError) {
-                        bestSubdivisionError = relativeError
-                    }
-                }
-                if (bestSubdivisionError < errorMargin) {
-                    totalError += bestSubdivisionError
-                } else {
-                    totalError += 0.5
-                }
-            }
-            val avgError = if (intervals.isNotEmpty()) totalError / intervals.size else 1.0
-            val accuracy = ((1.0 - avgError) * 100).toInt().coerceIn(0, 100)
-
-            val hitPositions = mutableListOf<Float>()
-            val detailedHits = mutableListOf<RhythmHit>()
-            val firstOnset = filteredOnsets[0]
-            var hitsOnBeat = 0
+            val quarterDuration = 60.0 / targetBpm
 
             for (onset in filteredOnsets) {
-                val timeFromStart = onset - firstOnset
-                val beatsPassed = timeFromStart / beatDuration
+                val rawBeatIndex = onset / quarterDuration
+                val nearestQuarter = round(rawBeatIndex).toInt()
+                val positionInBeat = rawBeatIndex % 1.0
 
-                val nearestBeat = round(beatsPassed).toInt()
-                val deviationBeats = beatsPassed - nearestBeat
-                val deviationMs = (deviationBeats * beatDuration * 1000).toInt()
+                val diffQuarter = abs(onset - (nearestQuarter * quarterDuration))
+                val diffEighth = abs(positionInBeat - 0.5) * quarterDuration
 
-                val isOnBeat = abs(deviationBeats * beatDuration) <= hitMarginSeconds
-                if (isOnBeat) hitsOnBeat++
+                val diffSixteenthA = abs(positionInBeat - 0.25) * quarterDuration
+                val diffSixteenthB = abs(positionInBeat - 0.75) * quarterDuration
+                val diffSixteenth = min(diffSixteenthA, diffSixteenthB)
 
-                val normalizedPos = 0.5f + deviationBeats.toFloat()
+                val minDiff = min(diffQuarter, min(diffEighth, diffSixteenth))
 
-                if (normalizedPos in 0.0f..1.0f) {
-                    hitPositions.add(normalizedPos)
+                var deviationSeconds = diffQuarter
+                var detectedNoteType = "Miss"
+                var isOnBeat = false
+
+                if (minDiff <= errorMargin) {
+                    isOnBeat = true
+                    when (minDiff) {
+                        diffQuarter -> {
+                            deviationSeconds = diffQuarter
+                            detectedNoteType = "Quarter"
+                        }
+                        diffEighth -> {
+                            deviationSeconds = diffEighth
+                            detectedNoteType = "Eighth"
+                        }
+                        else -> {
+                            deviationSeconds = diffSixteenth
+                            detectedNoteType = "Sixteenth"
+                        }
+                    }
+                } else {
+                    detectedNoteType = "Miss"
+                    isOnBeat = false
+                    deviationSeconds = minDiff
                 }
+
+                val deviationMs = (deviationSeconds * 1000).toInt()
+
+                if (isOnBeat) hitsOnBeat++
 
                 detailedHits.add(
                     RhythmHit(
                         timeSeconds = onset,
-                        beatNumber = nearestBeat,
+                        beatNumber = nearestQuarter,
                         deviationMs = deviationMs,
-                        isOnBeat = isOnBeat
+                        isOnBeat = isOnBeat,
+                        noteType = detectedNoteType
                     )
                 )
             }
 
-            val totalBeats = if (sessionDuration > 0) (sessionDuration / beatDuration).toInt() else 0
+            val totalBeats = if (sessionDuration > 0) (sessionDuration / quarterDuration).toInt() else 0
+
+            val accuracy = if (detailedHits.isNotEmpty()) {
+                (hitsOnBeat.toDouble() / detailedHits.size * 100).toInt()
+            } else 0
 
             return AnalysisResult(
                 bpm = targetBpm,
                 consistency = accuracy,
-                hits = hitPositions,
+                hits = detailedHits.map { (it.timeSeconds / sessionDuration).toFloat() },
                 detailedHits = detailedHits,
                 totalBeats = totalBeats,
                 hitsOnBeat = hitsOnBeat,
                 sessionDurationSeconds = sessionDuration
             )
         } else {
+            val intervals = mutableListOf<Double>()
+            for (i in 0 until filteredOnsets.size - 1) {
+                intervals.add(filteredOnsets[i + 1] - filteredOnsets[i])
+            }
             val averageInterval = intervals.average()
             val bpm = if (averageInterval > 0) (60.0 / averageInterval).toInt() else 0
+
             var totalDeviation = 0.0
             for (interval in intervals) {
                 totalDeviation += abs(interval - averageInterval)
@@ -171,6 +185,7 @@ class RhythmAnalyzer {
             val consistency = if (averageInterval > 0) {
                 ((1.0 - (totalDeviation / intervals.size / averageInterval)) * 100).toInt().coerceIn(0, 100)
             } else 0
+
             return AnalysisResult(bpm, consistency, sessionDurationSeconds = sessionDuration)
         }
     }

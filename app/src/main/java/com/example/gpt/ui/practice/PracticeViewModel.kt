@@ -24,8 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
@@ -81,8 +81,14 @@ class PracticeViewModel @Inject constructor(
     )
     val beatPattern = _beatPattern.asStateFlow()
 
-    private val _currentPlayingBeat = MutableStateFlow(1)
+    private val _currentPlayingBeat = MutableStateFlow(0)
     val currentPlayingBeat = _currentPlayingBeat.asStateFlow()
+
+    private val _bpm = MutableStateFlow(120)
+    val bpm = _bpm.asStateFlow()
+
+    private val _isMetronomePlaying = MutableStateFlow(false)
+    val isMetronomePlaying = _isMetronomePlaying.asStateFlow()
     private val _isDarkMode = MutableStateFlow(true)
     val isDarkMode = _isDarkMode.asStateFlow()
 
@@ -97,6 +103,13 @@ class PracticeViewModel @Inject constructor(
 
     private val _latencyOffset = MutableStateFlow(0)
     val latencyOffset = _latencyOffset.asStateFlow()
+
+    private val _metronomeOffset = MutableStateFlow(0)
+    val metronomeOffset = _metronomeOffset.asStateFlow()
+
+    private val _isRhythmAnalysisEnabled = MutableStateFlow(true)
+
+    val isRhythmAnalysisEnabled = _isRhythmAnalysisEnabled.asStateFlow()
 
     private val _baseFrequency = MutableStateFlow(440)
     val baseFrequency = _baseFrequency.asStateFlow()
@@ -173,6 +186,11 @@ class PracticeViewModel @Inject constructor(
     private var sessionStartupJob: Job? = null
     private var currentRecordingFile: File? = null
 
+    private var effectiveBpmValue = 100
+
+    private val recordedMetronomeClicks = mutableListOf<Double>()
+    private var sessionStartTime: Long = 0
+
     init {
         initializeSettings()
         setupMetronomeCallback()
@@ -193,6 +211,7 @@ class PracticeViewModel @Inject constructor(
             _inputThreshold.value = settingsRepo.getInputThreshold()
             _rhythmMargin.value = settingsRepo.getRhythmMargin()
             _latencyOffset.value = settingsRepo.getLatencyOffset()
+            _metronomeOffset.value = settingsRepo.getMetronomeOffset()
             _isHapticEnabled.value = settingsRepo.isHapticEnabled()
             audioEngine.currentThreshold = _inputThreshold.value
             hapticManager.setEnabled(_isHapticEnabled.value)
@@ -212,19 +231,47 @@ class PracticeViewModel @Inject constructor(
     }
 
     private fun setupMetronomeCallback() {
-        metronome.onBeatTick = { beatIndex ->
-            _currentPlayingBeat.value = beatIndex
+        metronome.onBeatTick = { beatIndex, isAccent ->
+            val delayMs = _metronomeOffset.value.toLong()
+            if (_isSessionActive.value && sessionStartTime > 0) {
+                val clickTimeSeconds = (System.currentTimeMillis() - sessionStartTime + delayMs) / 1000.0
+                recordedMetronomeClicks.add(clickTimeSeconds)
+            }
 
-            if (_isHapticEnabled.value) {
-                val beatType = _beatPattern.value.getOrNull(beatIndex - 1) ?: BeatType.NORMAL
-                when (beatType) {
-                    BeatType.ACCENT -> hapticManager.accentBeat()
-                    BeatType.NORMAL -> hapticManager.normalBeat()
-                    BeatType.MUTE -> {}
+            viewModelScope.launch(Dispatchers.Default) {
+                if (delayMs > 0) {
+                    delay(delayMs)
+                }
+                withContext(Dispatchers.Main.immediate) {
+                    _currentPlayingBeat.value = beatIndex + 1
+
+                    if (_isHapticEnabled.value) {
+                        if (effectiveBpmValue > 220) {
+                            if (isAccent) hapticManager.lightTap()
+                        } else {
+                            hapticManager.lightTap()
+                        }
+                    }
                 }
             }
         }
     }
+
+    private fun updateMetronomeSpeed() {
+        val ts = _timeSignature.value
+        val denominator = ts.split("/").getOrNull(1)?.toIntOrNull() ?: 4
+        val multiplier = if (denominator == 8) 2 else 1
+
+        val baseBpm = _metronomeBpm.value
+        effectiveBpmValue = baseBpm * multiplier
+
+        metronome.setBpm(effectiveBpmValue)
+    }
+
+    fun toggleRhythmAnalysis(enabled: Boolean) {
+        _isRhythmAnalysisEnabled.value = enabled
+    }
+
     fun analyzeSessionRhythm(session: PracticeSession) {
         if (session.audioPath == null || _detailedAnalysisResults.value.containsKey(session.id)) return
 
@@ -317,7 +364,7 @@ class PracticeViewModel @Inject constructor(
     }
 
     private fun calculateTapLatency(context: Application) {
-        if (tapTimestamps.size < 4) {
+        if (tapTimestamps.size < 3) {
             _latencyTestResult.value = context.getString(R.string.tap_calibration_not_enough)
             finishTapCalibration()
             return
@@ -326,29 +373,32 @@ class PracticeViewModel @Inject constructor(
         val differences = mutableListOf<Long>()
 
         for (tapTime in tapTimestamps) {
-            val matchingClick = clickTimestamps.filter { it < tapTime }.maxOrNull()
-            if (matchingClick != null) {
-                val diff = tapTime - matchingClick
-                if (diff in 50..600) {
+            val closestClick = clickTimestamps.minByOrNull { kotlin.math.abs(it - tapTime) }
+
+            if (closestClick != null) {
+                val diff = tapTime - closestClick
+                if (diff in -200..1000) {
                     differences.add(diff)
                 }
             }
         }
 
-        if (differences.size < 3) {
+        if (differences.isEmpty()) {
             _latencyTestResult.value = context.getString(R.string.tap_calibration_failed)
             finishTapCalibration()
             return
         }
+
         val sortedDiffs = differences.sorted()
         val medianDiff = sortedDiffs[sortedDiffs.size / 2]
-        val humanReactionTime = 180L
-        val audioLatency = (medianDiff - humanReactionTime).coerceIn(0, 250).toInt()
-        android.util.Log.d("TapCalibration", "Differences: $sortedDiffs")
-        android.util.Log.d("TapCalibration", "Median: $medianDiff, Reaction: $humanReactionTime, Latency: $audioLatency")
 
-        setLatencyOffset(audioLatency)
-        _latencyTestResult.value = context.getString(R.string.latency_measured, audioLatency)
+        val finalLatency = medianDiff.coerceAtLeast(0L).toInt()
+
+        android.util.Log.d("TapCalibration", "Raw diffs: $sortedDiffs")
+        android.util.Log.d("TapCalibration", "Calculated Latency: $finalLatency")
+
+        setLatencyOffset(finalLatency)
+        _latencyTestResult.value = context.getString(R.string.latency_measured, finalLatency)
         _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_done)
 
         finishTapCalibration()
@@ -387,6 +437,11 @@ class PracticeViewModel @Inject constructor(
     fun setLatencyOffset(ms: Int) {
         _latencyOffset.value = ms
         viewModelScope.launch { settingsRepo.setLatencyOffset(ms) }
+    }
+
+    fun setMetronomeOffset(ms: Int) {
+        _metronomeOffset.value = ms
+        viewModelScope.launch { settingsRepo.setMetronomeOffset(ms) }
     }
 
     fun setHapticEnabled(enabled: Boolean) {
@@ -455,21 +510,31 @@ class PracticeViewModel @Inject constructor(
     }
 
     fun setMetronomeBpm(bpm: Int) {
-        _metronomeBpm.value = bpm
-        metronome.setBpm(bpm)
+        val ts = _timeSignature.value
+        val denominator = ts.split("/").getOrNull(1)?.toIntOrNull() ?: 4
+        val maxAllowed = if (denominator == 8) 150 else 300
+
+        val safeBpm = bpm.coerceIn(20, maxAllowed)
+        _metronomeBpm.value = safeBpm
+        updateMetronomeSpeed()
     }
 
     fun setMetronomeTimeSignature(ts: String) {
-        _timeSignature.value = ts
         val parts = ts.split("/")
         val beats = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(1, 27) ?: 4
         val value = parts.getOrNull(1)?.toIntOrNull() ?: 4
+
+        _timeSignature.value = "$beats/$value"
+        if (value == 8 && _metronomeBpm.value > 150) {
+            _metronomeBpm.value = 150
+        }
 
         val newPattern = List(beats) { index ->
             if (index == 0) BeatType.ACCENT else BeatType.NORMAL
         }
         _beatPattern.value = newPattern
         metronome.setPattern(newPattern, value)
+        updateMetronomeSpeed()
     }
 
     fun toggleBeatType(index: Int) {
@@ -515,9 +580,12 @@ class PracticeViewModel @Inject constructor(
         _elapsedSeconds.value = 0
         currentRecordingFile = File(getApplication<Application>().cacheDir, "temp_session.wav")
 
+        recordedMetronomeClicks.clear()
+        sessionStartTime = 0
+
         sessionStartupJob = viewModelScope.launch(Dispatchers.Main) {
             if (_isMetronomeEnabled.value) {
-                metronome.setBpm(_metronomeBpm.value)
+                updateMetronomeSpeed()
 
                 val parts = _timeSignature.value.split("/")
                 val value = parts.getOrNull(1)?.toIntOrNull() ?: 4
@@ -525,8 +593,7 @@ class PracticeViewModel @Inject constructor(
                 metronome.start()
 
                 _isCountingIn.value = true
-                val beatMultiplier = 4.0 / value
-                val beatDurationMs = (60_000.0 / _metronomeBpm.value) * beatMultiplier
+                val beatDurationMs = (60_000.0 / effectiveBpmValue)
                 val barDurationMs = (beatDurationMs * _beatPattern.value.size).toLong()
 
                 delay(barDurationMs)
@@ -536,6 +603,8 @@ class PracticeViewModel @Inject constructor(
             withContext(Dispatchers.IO) {
                 audioEngine.start(currentRecordingFile!!)
             }
+
+            sessionStartTime = System.currentTimeMillis()
 
             timerJob = launch {
                 val start = System.currentTimeMillis()
@@ -557,27 +626,23 @@ class PracticeViewModel @Inject constructor(
 
         saveCurrentSession()
 
-        _timeSignature.value = "4/4"
-        setMetronomeTimeSignature("4/4")
-
         startMonitoring()
     }
 
     private fun saveCurrentSession() {
+        val currentBpm = _metronomeBpm.value
+        val currentTs = _timeSignature.value
+        val wasMetronomeOn = _isMetronomeEnabled.value
+        val isAnalysisRequested = _isRhythmAnalysisEnabled.value
+
+        val file = currentRecordingFile
+        val duration = _elapsedSeconds.value
+        val isCountingInState = _isCountingIn.value
+
         viewModelScope.launch(Dispatchers.IO) {
             audioEngine.stop()
 
-            val file = currentRecordingFile
-            val duration = _elapsedSeconds.value
-
-            if (duration < 5 && !_isCountingIn.value) {
-                try {
-                    if (file != null && file.exists()) {
-                        file.delete()
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+            if (duration < 5 && !isCountingInState) {
                 withContext(Dispatchers.Main) {
                     currentRecordingFile = null
                     _notes.value = ""
@@ -588,18 +653,21 @@ class PracticeViewModel @Inject constructor(
 
             if (file == null || !file.exists()) return@launch
 
-            val wasMeta = _isMetronomeEnabled.value
-            val result = if (wasMeta) {
-                rhythmAnalyzer.analyze(
-                    file,
-                    _metronomeBpm.value,
-                    _inputThreshold.value,
-                    _rhythmMargin.value,
-                    _latencyOffset.value
-                )
-            } else {
-                AnalysisResult(0, 0)
-            }
+            val shouldAnalyze = wasMetronomeOn && isAnalysisRequested
+
+            val denominator = currentTs.split("/").getOrNull(1)?.toIntOrNull() ?: 4
+            val multiplier = if (denominator == 8) 2 else 1
+            val analysisTargetBpm = if (shouldAnalyze) currentBpm * multiplier else 0
+
+            val clicksToFilter = if (shouldAnalyze) recordedMetronomeClicks else emptyList()
+            val result = rhythmAnalyzer.analyze(
+                audioFile = file,
+                targetBpm = analysisTargetBpm,
+                threshold = _inputThreshold.value,
+                errorMargin = _rhythmMargin.value,
+                latencyMs = _latencyOffset.value,
+                metronomeClicksSeconds = clicksToFilter
+            )
 
             val context = getApplication<Application>()
             val dir = File(context.filesDir, "recordings")
@@ -614,6 +682,8 @@ class PracticeViewModel @Inject constructor(
                 e.printStackTrace()
                 return@launch
             }
+            val savedBpm = if (shouldAnalyze) result.bpm else 0
+            val savedConsistency = if (shouldAnalyze) result.consistency else 0
 
             sessionDao.insertSession(
                 PracticeSession(
@@ -622,9 +692,9 @@ class PracticeViewModel @Inject constructor(
                     exerciseType = _exerciseType.value,
                     tuning = _tuning.value,
                     notes = _notes.value,
-                    avgBpm = result.bpm,
-                    consistencyScore = result.consistency,
-                    timeSignature = if (wasMeta) _timeSignature.value else "-",
+                    avgBpm = savedBpm,
+                    consistencyScore = savedConsistency,
+                    timeSignature = if (wasMetronomeOn) currentTs else "-",
                     audioPath = finalFile.absolutePath
                 )
             )
@@ -633,7 +703,8 @@ class PracticeViewModel @Inject constructor(
                 sessionDurationMinutes = duration.toLong() / 60,
                 bpm = _metronomeBpm.value,
                 exerciseType = _exerciseType.value,
-                isMetronomeSession = wasMeta
+                isMetronomeSession = shouldAnalyze,
+                consistencyScore = savedConsistency
             )
 
             withContext(Dispatchers.Main) {
@@ -687,7 +758,8 @@ class PracticeViewModel @Inject constructor(
     }
     fun exportToCSV(): String {
         val sessions = allSessions.value
-        val csv = StringBuilder("Date,Time,Duration (min),Exercise,Tuning,BPM,Accuracy,TimeSig,Notes\n")
+        val csv = StringBuilder("Date,Time,Duration (sec),Exercise,Tuning,BPM,Accuracy,TimeSig,Notes,RawTimestamp\n")
+
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
 
@@ -695,10 +767,12 @@ class PracticeViewModel @Inject constructor(
             val date = Date(s.timestamp)
             val bpmStr = if (s.avgBpm > 0) s.avgBpm.toString() else "Free"
             val accStr = if (s.avgBpm > 0) "${s.consistencyScore}%" else "-"
+
             val safeNotes = s.notes.replace("\"", "\"\"")
+
             csv.append(
-                "${dateFormat.format(date)},${timeFormat.format(date)},${s.durationSeconds / 60}," +
-                "${s.exerciseType},${s.tuning},${bpmStr},${accStr},${s.timeSignature},\"${safeNotes}\"\n"
+                "${dateFormat.format(date)},${timeFormat.format(date)},${s.durationSeconds}," +
+                        "${s.exerciseType},${s.tuning},${bpmStr},${accStr},${s.timeSignature},\"${safeNotes}\",${s.timestamp}\n"
             )
         }
         return csv.toString()
@@ -710,69 +784,78 @@ class PracticeViewModel @Inject constructor(
             if (lines.size < 2) return Result.failure(Exception("No data to import"))
 
             val header = lines.first().lowercase()
-            if (!header.contains("date") || !header.contains("duration")) {
-                return Result.failure(Exception("Invalid CSV format"))
-            }
+            val isSecondsFormat = header.contains("duration (sec)")
+            val hasRawTimestamp = header.contains("rawtimestamp")
 
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
             var importedCount = 0
-            var skippedDuplicates = 0
 
-            lines.drop(1).forEach { line ->
-                try {
-                    val parts = parseCSVLine(line)
-                    if (parts.size >= 5) {
-                        val dateStr = parts[0]
-                        val timeStr = parts.getOrNull(1) ?: "12:00"
-                        val durationMin = parts[2].toIntOrNull() ?: 0
-                        val exerciseType = parts[3]
-                        val tuning = parts[4]
-                        val bpmStr = parts.getOrNull(5) ?: "0"
-                        val accuracyStr = parts.getOrNull(6) ?: "0"
-                        val timeSig = parts.getOrNull(7) ?: "4/4"
-                        val notes = parts.getOrNull(8) ?: ""
+            viewModelScope.launch(Dispatchers.IO) {
+                lines.drop(1).forEach { line ->
+                    try {
+                        val parts = parseCSVLine(line)
+                        if (parts.size >= 5) {
+                            val dateStr = parts[0]
+                            val timeStr = parts.getOrNull(1) ?: "12:00"
 
-                        val date = dateFormat.parse(dateStr) ?: Date()
-                        val time = try { timeFormat.parse(timeStr) } catch (_: Exception) { null }
+                            val durationRaw = parts[2].toLongOrNull() ?: 0L
+                            val durationSeconds = if (isSecondsFormat) durationRaw else durationRaw * 60L
 
-                        val calendar = java.util.Calendar.getInstance().apply {
-                            setTime(date)
-                            if (time != null) {
-                                val timeCal = java.util.Calendar.getInstance().apply { setTime(time) }
-                                set(java.util.Calendar.HOUR_OF_DAY, timeCal.get(java.util.Calendar.HOUR_OF_DAY))
-                                set(java.util.Calendar.MINUTE, timeCal.get(java.util.Calendar.MINUTE))
+                            val exerciseType = parts[3]
+                            val tuning = parts[4]
+                            val bpmStr = parts.getOrNull(5) ?: "0"
+                            val accuracyStr = parts.getOrNull(6) ?: "0"
+                            val timeSig = parts.getOrNull(7) ?: "4/4"
+                            val notes = parts.getOrNull(8) ?: ""
+
+                            val rawTimestampStr = parts.getOrNull(9)
+
+                            val finalTimestamp = if (hasRawTimestamp && rawTimestampStr != null) {
+                                rawTimestampStr.toLongOrNull() ?: System.currentTimeMillis()
+                            } else {
+                                val date = dateFormat.parse(dateStr) ?: Date()
+                                val time = try { timeFormat.parse(timeStr) } catch (_: Exception) { null }
+                                val calendar = java.util.Calendar.getInstance().apply {
+                                    setTime(date)
+                                    if (time != null) {
+                                        val timeCal = java.util.Calendar.getInstance().apply { setTime(time) }
+                                        set(java.util.Calendar.HOUR_OF_DAY, timeCal.get(java.util.Calendar.HOUR_OF_DAY))
+                                        set(java.util.Calendar.MINUTE, timeCal.get(java.util.Calendar.MINUTE))
+                                        set(java.util.Calendar.SECOND, 0)
+                                        set(java.util.Calendar.MILLISECOND, 0)
+                                    }
+                                }
+                                calendar.timeInMillis
                             }
-                        }
 
-                        val timestamp = calendar.timeInMillis
-                        val durationSeconds = durationMin.toLong() * 60L
+                            val exists = sessionDao.sessionExists(finalTimestamp, durationSeconds, exerciseType)
 
-                        val bpm = bpmStr.replace("Free", "0").toIntOrNull() ?: 0
-                        val accuracy = accuracyStr.replace("%", "").replace("-", "0").toIntOrNull() ?: 0
-                        viewModelScope.launch {
-                            val exists = sessionDao.sessionExists(timestamp, durationSeconds, exerciseType)
                             if (!exists) {
+                                val bpm = bpmStr.replace("Free", "0").toIntOrNull() ?: 0
+                                val accuracy = accuracyStr.replace("%", "").replace("-", "0").toIntOrNull() ?: 0
+
                                 val session = PracticeSession(
-                                    timestamp = timestamp,
+                                    timestamp = finalTimestamp,
                                     durationSeconds = durationSeconds,
                                     exerciseType = exerciseType,
                                     tuning = tuning,
                                     notes = notes,
                                     avgBpm = bpm,
                                     consistencyScore = accuracy,
-                                    timeSignature = timeSig
+                                    timeSignature = timeSig,
+                                    audioPath = null
                                 )
                                 sessionDao.insertSession(session)
+                                importedCount++
                             }
                         }
-                        importedCount++
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
-                } catch (_: Exception) {
                 }
             }
-
-            Result.success(importedCount)
+            Result.success(lines.size - 1)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -807,4 +890,3 @@ class PracticeViewModel @Inject constructor(
         sessionStartupJob?.cancel()
     }
 }
-

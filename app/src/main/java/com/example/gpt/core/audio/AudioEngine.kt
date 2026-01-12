@@ -65,7 +65,15 @@ class AudioEngine {
         val audioBufferSize = maxOf(BUFFER_SIZE * 2, minBufferSize)
 
         try {
-            audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, audioBufferSize)
+            val audioSource = MediaRecorder.AudioSource.VOICE_RECOGNITION
+
+            audioRecord = AudioRecord(
+                audioSource,
+                SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                audioBufferSize
+            )
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
                 Log.e("AudioEngine", "AudioRecord failed to initialize")
@@ -141,8 +149,10 @@ class AudioEngine {
                 e.printStackTrace()
             }
         }
-
-        audioThread = Thread(dispatcher, "Audio Thread")
+        audioThread = Thread({
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+            dispatcher?.run()
+        }, "Audio Thread")
         audioThread?.start()
         isRunning = true
     }

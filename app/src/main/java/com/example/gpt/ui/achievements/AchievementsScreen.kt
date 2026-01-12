@@ -12,19 +12,15 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -49,7 +44,7 @@ import com.example.gpt.R
 import com.example.gpt.data.local.entity.Achievement
 import com.example.gpt.data.local.entity.AchievementType
 import com.example.gpt.ui.practice.PracticeViewModel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -78,24 +73,6 @@ fun AchievementsSection(
 ) {
     var selectedAchievement by remember { mutableStateOf<AchievementType?>(null) }
 
-    val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
-
-    val canScrollForward by remember {
-        derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val totalItems = layoutInfo.totalItemsCount
-            val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            lastVisibleItemIndex < totalItems - 1
-        }
-    }
-
-    val canScrollBackward by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
-        }
-    }
-
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -104,16 +81,16 @@ fun AchievementsSection(
         ) {
             Text(
                 text = stringResource(R.string.achievements_title),
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
             )
 
             Text(
                 text = "$unlockedCount / $totalCount",
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Bold
             )
         }
 
@@ -123,20 +100,25 @@ fun AchievementsSection(
             progress = { if (totalCount > 0) unlockedCount.toFloat() / totalCount else 0f },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
             color = MaterialTheme.colorScheme.primary,
             trackColor = MaterialTheme.colorScheme.surfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        val chunkedAchievements = remember { AchievementType.values().toList().chunked(2) }
+        val chunkedAchievements = remember(achievements) {
+            val sortedList = AchievementType.entries.sortedByDescending { type ->
+                val achievement = achievements.find { it.id == type.id }
+                achievement?.unlockedAt != null
+            }
+            sortedList.chunked(2)
+        }
 
         LazyRow(
-            state = listState,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(end = 16.dp),
+            contentPadding = PaddingValues(0.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             items(chunkedAchievements) { columnItems ->
@@ -148,54 +130,13 @@ fun AchievementsSection(
                         val isUnlocked = achievement?.unlockedAt != null
                         val progress = achievement?.progress ?: 0
 
-                        AchievementBadge(
+                        AchievementBadgeCompact(
                             type = type,
                             isUnlocked = isUnlocked,
                             progress = progress,
                             onClick = { selectedAchievement = type }
                         )
                     }
-                }
-            }
-        }
-
-        if (chunkedAchievements.size > 4) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            listState.animateScrollBy(-300f)
-                        }
-                    },
-                    enabled = canScrollBackward
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Scroll Left",
-                        tint = if (canScrollBackward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(32.dp))
-
-                IconButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            listState.animateScrollBy(300f)
-                        }
-                    },
-                    enabled = canScrollForward
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Scroll Right",
-                        tint = if (canScrollForward) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                    )
                 }
             }
         }
@@ -212,36 +153,36 @@ fun AchievementsSection(
 }
 
 @Composable
-private fun AchievementBadge(
+private fun AchievementBadgeCompact(
     type: AchievementType,
     isUnlocked: Boolean,
     progress: Int,
     onClick: () -> Unit
 ) {
     val icon = getIconForAchievementType(type)
-    val color = if (isUnlocked) getColorForAchievement(type) else Color.Gray
+    val color = if (isUnlocked) getColorForAchievement(type) else MaterialTheme.colorScheme.onSurfaceVariant
 
     val scale by animateFloatAsState(
-        targetValue = if (isUnlocked) 1f else 0.95f,
+        targetValue = if (isUnlocked) 1f else 0.98f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "badgeScale"
     )
 
     Card(
         modifier = Modifier
-            .width(85.dp)
-            .height(110.dp)
+            .width(88.dp)
+            .height(96.dp)
             .scale(scale)
             .clickable { onClick() },
         colors = CardDefaults.cardColors(
             containerColor = if (isUnlocked) {
                 MaterialTheme.colorScheme.surface
             } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if(isUnlocked) 2.dp else 0.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -256,20 +197,20 @@ private fun AchievementBadge(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(28.dp)
-                        .alpha(if (isUnlocked) 1f else 0.4f),
+                        .size(26.dp)
+                        .alpha(if (isUnlocked) 1f else 0.3f),
                     tint = color
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = stringResource(type.titleRes),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isUnlocked) 1f else 0.6f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isUnlocked) 0.9f else 0.5f),
                     textAlign = TextAlign.Center,
-                    lineHeight = 12.sp,
+                    lineHeight = 10.sp,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -279,14 +220,12 @@ private fun AchievementBadge(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(2.dp)
-                        .size(18.dp),
+                        .padding(3.dp)
+                        .size(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(color = Color.Black.copy(alpha = 0.6f))
-
-                        if (progress > 0) {
+                    if (progress > 0) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
                             drawArc(
                                 color = Color(0xFFFF5252),
                                 startAngle = -90f,
@@ -296,12 +235,11 @@ private fun AchievementBadge(
                             )
                         }
                     }
-
                     Icon(
                         Icons.Default.Lock,
                         contentDescription = null,
                         modifier = Modifier.size(9.dp),
-                        tint = Color.White
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f)
                     )
                 }
             }
@@ -443,6 +381,29 @@ private fun AchievementDetailDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.achievement_rules_hint),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
@@ -463,7 +424,7 @@ fun AchievementUnlockedToast(
     val color = getColorForAchievement(achievementType)
 
     LaunchedEffect(achievementType) {
-        kotlinx.coroutines.delay(4000)
+        delay(4000)
         onDismiss()
     }
 
@@ -493,7 +454,7 @@ fun AchievementUnlockedToast(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(40.dp)
                         .background(color.copy(alpha = 0.2f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -501,7 +462,7 @@ fun AchievementUnlockedToast(
                         imageVector = getIconForAchievementType(achievementType),
                         contentDescription = null,
                         tint = color,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
@@ -510,13 +471,13 @@ fun AchievementUnlockedToast(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "🏆 " + stringResource(R.string.achievement_unlocked),
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         color = color,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = stringResource(achievementType.titleRes),
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,

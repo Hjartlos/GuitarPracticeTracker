@@ -23,6 +23,7 @@ class SettingsRepository @Inject constructor(private val context: Context) {
         private val INPUT_THRESHOLD_KEY = floatPreferencesKey("input_threshold")
         private val RHYTHM_MARGIN_KEY = floatPreferencesKey("rhythm_margin")
         private val LATENCY_OFFSET_KEY = intPreferencesKey("latency_offset")
+        private val METRONOME_OFFSET_KEY = intPreferencesKey("metronome_offset")
         private val LANGUAGE_KEY = stringPreferencesKey("app_language")
         private val HAPTIC_ENABLED_KEY = booleanPreferencesKey("haptic_enabled")
     }
@@ -65,6 +66,14 @@ class SettingsRepository @Inject constructor(private val context: Context) {
 
     suspend fun getLatencyOffset(): Int {
         return context.dataStore.data.first()[LATENCY_OFFSET_KEY] ?: 0
+    }
+
+    suspend fun setMetronomeOffset(ms: Int) {
+        context.dataStore.edit { prefs -> prefs[METRONOME_OFFSET_KEY] = ms }
+    }
+
+    suspend fun getMetronomeOffset(): Int {
+        return context.dataStore.data.first()[METRONOME_OFFSET_KEY] ?: 40
     }
 
     suspend fun setLanguage(langCode: String) {

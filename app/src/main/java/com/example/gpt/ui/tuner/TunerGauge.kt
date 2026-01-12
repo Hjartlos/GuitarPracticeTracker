@@ -68,25 +68,27 @@ fun TunerGauge(
 
     val animatedNeedleColor by animateColorAsState(targetValue = targetNeedleColor, label = "NeedleColorAnimation")
 
-    val arcBrush = Brush.horizontalGradient(
-        colors = listOf(
-            Color(0xFFD50000),
-            Color(0xFFFFD600),
-            Color(0xFF00C853),
-            Color(0xFFFFD600),
-            Color(0xFFD50000)
-        )
-    )
-
     Box(contentAlignment = Alignment.Center, modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxWidth(0.85f).height(200.dp)) {
             val w = size.width
             val h = size.height
 
-            val radius = min(w / 2, h) - 10f
-
             val centerX = w / 2
             val centerY = h * 0.85f
+
+            val radius = min(w / 2, centerY - (ARC_STROKE_WIDTH / 2)) - 10f
+
+            val arcBrush = Brush.horizontalGradient(
+                colors = listOf(
+                    Color(0xFFD50000),
+                    Color(0xFFFFD600),
+                    Color(0xFF00C853),
+                    Color(0xFFFFD600),
+                    Color(0xFFD50000)
+                ),
+                startX = centerX - radius,
+                endX = centerX + radius
+            )
 
             drawArc(
                 brush = arcBrush,

@@ -38,6 +38,7 @@ import com.example.gpt.ui.practice.PracticeViewModel
 import com.example.gpt.ui.settings.SettingsScreen
 import com.example.gpt.ui.splash.SplashScreen
 import com.example.gpt.ui.statistics.StatisticsScreen
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gpt.ui.tuner.TunerScreen
 import com.example.gpt.theme.GPTTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -113,8 +114,9 @@ fun AppContent(viewModel: PracticeViewModel, splashAlreadyShown: Boolean = false
 
         AppScreen.ONBOARDING -> {
             OnboardingScreen(
+                viewModel = viewModel,
                 onFinished = {
-                    prefs.edit().putBoolean(PREF_ONBOARDING_COMPLETED, true).apply()
+                    prefs.edit().putBoolean("onboarding_completed", true).apply()
                     currentScreen = AppScreen.MAIN
                 }
             )

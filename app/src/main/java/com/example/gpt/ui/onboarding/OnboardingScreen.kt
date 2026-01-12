@@ -6,10 +6,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -28,18 +31,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gpt.R
+import com.example.gpt.ui.practice.PracticeViewModel
 import kotlinx.coroutines.launch
 
 data class OnboardingPage(
     val titleRes: Int,
     val descriptionRes: Int,
     val icon: ImageVector,
-    val accentColor: Color
+    val accentColor: Color,
+    val isCalibrationPage: Boolean = false
 )
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(
+    viewModel: PracticeViewModel,
     onFinished: () -> Unit
 ) {
     val pages = listOf(
@@ -72,11 +78,29 @@ fun OnboardingScreen(
             descriptionRes = R.string.onboarding_stats_desc,
             icon = Icons.Default.Insights,
             accentColor = Color(0xFF9C27B0)
+        ),
+        OnboardingPage(
+            titleRes = R.string.audio_calibration,
+            descriptionRes = R.string.onboarding_calib_desc,
+            icon = Icons.Default.SettingsInputComponent,
+            accentColor = Color(0xFF00BCD4),
+            isCalibrationPage = true
         )
     )
 
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val coroutineScope = rememberCoroutineScope()
+
+    val isCalibrationPageActive = pagerState.currentPage == pages.lastIndex
+    LaunchedEffect(isCalibrationPageActive) {
+        if (isCalibrationPageActive) {
+            viewModel.startMonitoring()
+        } else {
+            viewModel.stopMonitoring()
+            viewModel.stopTestMetronome()
+            if (viewModel.isTapCalibrating.value) viewModel.cancelTapCalibration()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -99,22 +123,40 @@ fun OnboardingScreen(
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = onFinished) {
-                    Text(
-                        text = stringResource(R.string.skip),
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
+                AnimatedVisibility(
+                    visible = pagerState.currentPage != pages.lastIndex,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    TextButton(onClick = onFinished) {
+                        Text(
+                            text = stringResource(R.string.skip),
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                if (pagerState.currentPage == pages.lastIndex) {
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
             }
 
             HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.weight(1f)
-            ) { page ->
-                OnboardingPageContent(
-                    page = pages[page],
-                    pageIndex = page
-                )
+                modifier = Modifier.weight(1f),
+                userScrollEnabled = false
+            ) { pageIndex ->
+                val page = pages[pageIndex]
+                if (page.isCalibrationPage) {
+                    OnboardingCalibrationContent(
+                        page = page,
+                        viewModel = viewModel
+                    )
+                } else {
+                    OnboardingPageContent(
+                        page = page,
+                        pageIndex = pageIndex
+                    )
+                }
             }
 
             Column(
@@ -137,72 +179,72 @@ fun OnboardingScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                if (pagerState.currentPage == pages.lastIndex) {
-                    Button(
-                        onClick = onFinished,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFE53935)
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.get_started),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (pagerState.currentPage == pages.lastIndex) {
+                        Button(
+                            onClick = onFinished,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFE53935)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.get_started),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (pagerState.currentPage > 0) {
+                                FloatingActionButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                        }
+                                    },
+                                    containerColor = Color.White.copy(alpha = 0.1f),
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
 
-                        if (pagerState.currentPage > 0) {
+                                Spacer(modifier = Modifier.width(32.dp))
+                            }
                             FloatingActionButton(
                                 onClick = {
                                     coroutineScope.launch {
-                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
                                     }
                                 },
-                                containerColor = Color.White.copy(alpha = 0.1f),
-                                modifier = Modifier.size(48.dp)
+                                containerColor = pages[pagerState.currentPage].accentColor,
+                                modifier = Modifier.size(56.dp)
                             ) {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = Color.White.copy(alpha = 0.7f)
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next",
+                                    tint = Color.White
                                 )
                             }
-                        } else {
-                            Spacer(modifier = Modifier.size(48.dp))
                         }
-
-                        Spacer(modifier = Modifier.width(24.dp))
-
-                        FloatingActionButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                                }
-                            },
-                            containerColor = pages[pagerState.currentPage].accentColor,
-                            modifier = Modifier.size(56.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "Next",
-                                tint = Color.White
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(24.dp))
-                        Spacer(modifier = Modifier.size(48.dp))
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -296,6 +338,230 @@ private fun OnboardingPageContent(
 }
 
 @Composable
+private fun OnboardingCalibrationContent(
+    page: OnboardingPage,
+    viewModel: PracticeViewModel
+) {
+    val threshold by viewModel.inputThreshold.collectAsState()
+    val amplitude by viewModel.amplitude.collectAsState()
+    val isLatencyTesting by viewModel.isLatencyTesting.collectAsState()
+    val latencyResult by viewModel.latencyTestResult.collectAsState()
+    val latencyOffset by viewModel.latencyOffset.collectAsState()
+    val isTestRunning by viewModel.isTestMetronomeRunning.collectAsState()
+    val isTapCalibrating by viewModel.isTapCalibrating.collectAsState()
+    val tapBeat by viewModel.tapCalibrationBeat.collectAsState()
+    val tapProgress by viewModel.tapCalibrationProgress.collectAsState()
+
+    val animatedAmplitude by animateFloatAsState(targetValue = amplitude, label = "amp")
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = stringResource(page.titleRes),
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(page.descriptionRes),
+            fontSize = 14.sp,
+            color = Color.White.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+
+                Text(
+                    stringResource(R.string.input_check),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = { viewModel.toggleTestMetronome() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if(isTestRunning) MaterialTheme.colorScheme.error else page.accentColor
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text(
+                            text = if(isTestRunning) stringResource(R.string.stop_test) else stringResource(R.string.play_click),
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    val progress = (animatedAmplitude / 60f).coerceIn(0f, 1f)
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = when {
+                            progress > 0.5f -> Color(0xFF4CAF50)
+                            progress > 0.1f -> page.accentColor
+                            else -> Color.Gray
+                        },
+                        trackColor = Color.White.copy(alpha = 0.1f),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val sliderThreshold = ((0.5f - threshold) / 0.45f).coerceIn(0f, 1f)
+                val sensitivityPercent = (sliderThreshold * 100).toInt()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        stringResource(R.string.mic_sensitivity_label),
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "$sensitivityPercent%",
+                        fontSize = 12.sp,
+                        color = page.accentColor
+                    )
+                }
+
+                Slider(
+                    value = sliderThreshold,
+                    onValueChange = { sliderValue ->
+                        val newThreshold = 0.5f - (sliderValue * 0.45f)
+                        viewModel.setInputThreshold(newThreshold)
+                    },
+                    valueRange = 0f..1f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = page.accentColor,
+                        activeTrackColor = page.accentColor,
+                        inactiveTrackColor = Color.White.copy(alpha=0.2f)
+                    )
+                )
+                Text(
+                    stringResource(R.string.mic_sensitivity_expl),
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.5f),
+                    lineHeight = 14.sp
+                )
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
+
+                Text(
+                    stringResource(R.string.latency_label),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (isTapCalibrating) {
+                    Text(
+                        text = tapProgress,
+                        color = page.accentColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        repeat(8) { index ->
+                            val isActive = tapBeat >= (index + 1)
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isActive) page.accentColor else Color.White.copy(alpha = 0.2f))
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { viewModel.registerCalibrationTap() },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                    ) {
+                        Text(stringResource(R.string.tap_here), color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(
+                        onClick = { viewModel.startTapCalibration() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLatencyTesting,
+                        colors = ButtonDefaults.buttonColors(containerColor = page.accentColor.copy(alpha=0.2f), contentColor = page.accentColor),
+                        border = BorderStroke(1.dp, page.accentColor.copy(alpha=0.5f))
+                    ) {
+                        Text(if (isLatencyTesting) stringResource(R.string.calibrating) else stringResource(R.string.auto_calibrate_btn))
+                    }
+                }
+
+                if (latencyResult != null && !isTapCalibrating) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = latencyResult!!,
+                        color = Color(0xFF4CAF50),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    stringResource(R.string.manual_calib_title) + " (${latencyOffset}ms)",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.Bold
+                )
+
+                Slider(
+                    value = latencyOffset.toFloat(),
+                    onValueChange = { viewModel.setLatencyOffset(it.toInt()) },
+                    valueRange = 0f..300f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.Gray,
+                        activeTrackColor = Color.Gray,
+                        inactiveTrackColor = Color.White.copy(alpha=0.2f)
+                    )
+                )
+                Text(
+                    stringResource(R.string.latency_expl),
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.5f),
+                    lineHeight = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun PageIndicator(
     isSelected: Boolean,
     color: Color
@@ -320,4 +586,3 @@ private fun PageIndicator(
             .background(indicatorColor)
     )
 }
-

@@ -55,13 +55,12 @@ fun TunerScreen(viewModel: PracticeViewModel) {
     val isTonePlaying by ToneGenerator.isPlaying.collectAsState()
     val isDark = isSystemInDarkTheme()
 
-    LaunchedEffect(Unit) {
-        viewModel.startMonitoring()
-    }
-
     DisposableEffect(Unit) {
+        viewModel.startMonitoring()
+
         onDispose {
             ToneGenerator.stopCurrentTone()
+            viewModel.stopMonitoring()
         }
     }
 

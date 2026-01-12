@@ -411,14 +411,12 @@ fun BarChart(data: List<Pair<String, Float>>, weeklyGoalHours: Int, isHours: Boo
         yAxisMax = (ceil(rawMax / stepSize) * stepSize)
     } else {
         val rawMax = max(maxDataValue, dailyGoal).coerceAtLeast(10f)
-
         stepSize = when {
             rawMax <= 30f -> 5f
             rawMax <= 180f -> 15f
             rawMax <= 360f -> 30f
             else -> 60f
         }
-
         yAxisMax = (ceil(rawMax / stepSize) * stepSize)
     }
 
@@ -427,6 +425,24 @@ fun BarChart(data: List<Pair<String, Float>>, weeklyGoalHours: Int, isHours: Boo
     val barColor = MaterialTheme.colorScheme.primary
     val labelColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+
+    val density = LocalDensity.current
+    val textPaint = remember(density) {
+        android.graphics.Paint().apply {
+            color = labelColor
+            textSize = with(density) { 10.sp.toPx() }
+            textAlign = android.graphics.Paint.Align.RIGHT
+            isAntiAlias = true
+        }
+    }
+    val labelPaint = remember(density) {
+        android.graphics.Paint().apply {
+            color = labelColor
+            textSize = with(density) { 11.sp.toPx() }
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+        }
+    }
 
     Canvas(modifier = Modifier.fillMaxSize().padding(start = 32.dp, end = 16.dp, top = 20.dp, bottom = 30.dp)) {
         val width = size.width
@@ -455,11 +471,7 @@ fun BarChart(data: List<Pair<String, Float>>, weeklyGoalHours: Int, isHours: Boo
                 labelText,
                 -15f,
                 yPos + 10f,
-                android.graphics.Paint().apply {
-                    color = labelColor
-                    textSize = 32f
-                    textAlign = android.graphics.Paint.Align.RIGHT
-                }
+                textPaint
             )
         }
 
@@ -467,15 +479,12 @@ fun BarChart(data: List<Pair<String, Float>>, weeklyGoalHours: Int, isHours: Boo
             val x = index * stepX + (stepX / 2) - (barWidth / 2)
             val barHeight = (value / yAxisMax) * height
             drawRect(color = barColor, topLeft = Offset(x, height - barHeight), size = Size(barWidth, barHeight))
+
             drawContext.canvas.nativeCanvas.drawText(
                 dayName,
                 x + barWidth/2,
                 height + 40f,
-                android.graphics.Paint().apply {
-                    color = labelColor
-                    textSize = 34f
-                    textAlign = android.graphics.Paint.Align.CENTER
-                }
+                labelPaint
             )
         }
     }
