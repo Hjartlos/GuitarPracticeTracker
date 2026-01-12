@@ -411,7 +411,7 @@ private fun OnboardingCalibrationContent(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    val progress = (animatedAmplitude / 60f).coerceIn(0f, 1f)
+                    val progress = (animatedAmplitude / 100f).coerceIn(0f, 1f)
                     LinearProgressIndicator(
                         progress = { progress },
                         modifier = Modifier
@@ -419,8 +419,8 @@ private fun OnboardingCalibrationContent(
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
                         color = when {
-                            progress > 0.5f -> Color(0xFF4CAF50)
-                            progress > 0.1f -> page.accentColor
+                            progress > (threshold * 2) -> Color(0xFF4CAF50)
+                            progress > 0.05f -> page.accentColor
                             else -> Color.Gray
                         },
                         trackColor = Color.White.copy(alpha = 0.1f),
@@ -429,8 +429,8 @@ private fun OnboardingCalibrationContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val sliderThreshold = ((0.5f - threshold) / 0.45f).coerceIn(0f, 1f)
-                val sensitivityPercent = (sliderThreshold * 100).toInt()
+                val sliderThreshold = (threshold / 0.2f).coerceIn(0f, 1f)
+                val sensitivityPercent = ((1f - sliderThreshold) * 100).toInt()
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -451,10 +451,7 @@ private fun OnboardingCalibrationContent(
 
                 Slider(
                     value = sliderThreshold,
-                    onValueChange = { sliderValue ->
-                        val newThreshold = 0.5f - (sliderValue * 0.45f)
-                        viewModel.setInputThreshold(newThreshold)
-                    },
+                    onValueChange = { viewModel.setInputThreshold((it * 0.2f).coerceAtLeast(0.001f)) },
                     valueRange = 0f..1f,
                     colors = SliderDefaults.colors(
                         thumbColor = page.accentColor,
@@ -500,18 +497,16 @@ private fun OnboardingCalibrationContent(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { viewModel.registerCalibrationTap() },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-                    ) {
-                        Text(stringResource(R.string.tap_here), color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.calibration_hold_near),
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.5f),
+                        textAlign = TextAlign.Center
+                    )
                 } else {
                     Button(
-                        onClick = { viewModel.startTapCalibration() },
+                        onClick = { viewModel.runLatencyAutoCalibration() },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isLatencyTesting,
                         colors = ButtonDefaults.buttonColors(containerColor = page.accentColor.copy(alpha=0.2f), contentColor = page.accentColor),
