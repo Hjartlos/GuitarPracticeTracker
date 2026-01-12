@@ -95,7 +95,7 @@ class PracticeViewModel @Inject constructor(
     private val _weeklyGoalHours = MutableStateFlow(5)
     val weeklyGoalHours = _weeklyGoalHours.asStateFlow()
 
-    private val _inputThreshold = MutableStateFlow(0.15f)
+    private val _inputThreshold = MutableStateFlow(0.02f)
     val inputThreshold = _inputThreshold.asStateFlow()
 
     private val _rhythmMargin = MutableStateFlow(0.30f)
@@ -657,9 +657,11 @@ class PracticeViewModel @Inject constructor(
 
             val denominator = currentTs.split("/").getOrNull(1)?.toIntOrNull() ?: 4
             val multiplier = if (denominator == 8) 2 else 1
+
             val analysisTargetBpm = if (shouldAnalyze) currentBpm * multiplier else 0
 
             val clicksToFilter = if (shouldAnalyze) recordedMetronomeClicks else emptyList()
+
             val result = rhythmAnalyzer.analyze(
                 audioFile = file,
                 targetBpm = analysisTargetBpm,
@@ -682,7 +684,9 @@ class PracticeViewModel @Inject constructor(
                 e.printStackTrace()
                 return@launch
             }
-            val savedBpm = if (shouldAnalyze) result.bpm else 0
+
+            val dbBpm = if (wasMetronomeOn) currentBpm else 0
+
             val savedConsistency = if (shouldAnalyze) result.consistency else 0
 
             sessionDao.insertSession(
@@ -692,7 +696,7 @@ class PracticeViewModel @Inject constructor(
                     exerciseType = _exerciseType.value,
                     tuning = _tuning.value,
                     notes = _notes.value,
-                    avgBpm = savedBpm,
+                    avgBpm = dbBpm,
                     consistencyScore = savedConsistency,
                     timeSignature = if (wasMetronomeOn) currentTs else "-",
                     audioPath = finalFile.absolutePath

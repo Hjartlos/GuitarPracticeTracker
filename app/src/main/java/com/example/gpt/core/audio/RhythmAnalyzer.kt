@@ -4,6 +4,8 @@ import be.tarsos.dsp.AudioDispatcher
 import be.tarsos.dsp.io.TarsosDSPAudioFormat
 import be.tarsos.dsp.io.UniversalAudioInputStream
 import be.tarsos.dsp.onsets.ComplexOnsetDetector
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import kotlin.math.abs
@@ -34,18 +36,18 @@ class RhythmAnalyzer {
         private const val SAMPLE_RATE = 44100f
         private const val BUFFER_SIZE = 1024
         private const val HOP_SIZE = 512
-        private const val METRONOME_BLIND_WINDOW = 0.08
+        private const val METRONOME_BLIND_WINDOW = 0.05
     }
 
-    fun analyze(
+    suspend fun analyze(
         audioFile: File,
         targetBpm: Int,
         threshold: Float,
         errorMargin: Float,
         latencyMs: Int,
         metronomeClicksSeconds: List<Double> = emptyList()
-    ): AnalysisResult {
-        if (!audioFile.exists() || audioFile.length() < 1000) return AnalysisResult(0, 0)
+    ): AnalysisResult = withContext(Dispatchers.Default) {
+        if (!audioFile.exists() || audioFile.length() < 1000) return@withContext AnalysisResult(0, 0)
 
         val rawOnsets = mutableListOf<Pair<Double, Double>>()
         val latencySec = latencyMs / 1000.0
@@ -68,7 +70,7 @@ class RhythmAnalyzer {
             dispatcher.run()
         } catch (e: Exception) {
             e.printStackTrace()
-            return AnalysisResult(0, 0)
+            return@withContext AnalysisResult(0, 0)
         }
 
         val averageSalience = if (rawOnsets.isNotEmpty()) {
@@ -82,7 +84,7 @@ class RhythmAnalyzer {
                 }
 
                 if (isInsideMetronomeWindow) {
-                    onsetSalience > (averageSalience * 0.6)
+                    onsetSalience > (averageSalience * 2.0)
                 } else {
                     true
                 }
@@ -91,14 +93,19 @@ class RhythmAnalyzer {
             rawOnsets.map { it.first }
         }
 
-        if (filteredOnsets.isEmpty()) return AnalysisResult(0, 0)
+        if (filteredOnsets.isEmpty()) return@withContext AnalysisResult(0, 0)
 
         val detailedHits = mutableListOf<RhythmHit>()
         var hitsOnBeat = 0
+        var totalDeviationMs = 0L
         val sessionDuration = filteredOnsets.lastOrNull() ?: 0.0
 
         if (targetBpm > 0) {
             val quarterDuration = 60.0 / targetBpm
+
+            val strictWindowMs = 25.0
+            val looseWindowMs = 150.0
+            val allowedWindowSeconds = (strictWindowMs + (looseWindowMs - strictWindowMs) * errorMargin) / 1000.0
 
             for (onset in filteredOnsets) {
                 val rawBeatIndex = onset / quarterDuration
@@ -118,7 +125,7 @@ class RhythmAnalyzer {
                 var detectedNoteType = "Miss"
                 var isOnBeat = false
 
-                if (minDiff <= errorMargin) {
+                if (minDiff <= allowedWindowSeconds) {
                     isOnBeat = true
                     when (minDiff) {
                         diffQuarter -> {
@@ -134,21 +141,20 @@ class RhythmAnalyzer {
                             detectedNoteType = "Sixteenth"
                         }
                     }
+                    hitsOnBeat++
+                    totalDeviationMs += (minDiff * 1000).toLong()
                 } else {
                     detectedNoteType = "Miss"
                     isOnBeat = false
                     deviationSeconds = minDiff
+                    totalDeviationMs += (allowedWindowSeconds * 1000).toLong() * 2
                 }
-
-                val deviationMs = (deviationSeconds * 1000).toInt()
-
-                if (isOnBeat) hitsOnBeat++
 
                 detailedHits.add(
                     RhythmHit(
                         timeSeconds = onset,
                         beatNumber = nearestQuarter,
-                        deviationMs = deviationMs,
+                        deviationMs = (deviationSeconds * 1000).toInt(),
                         isOnBeat = isOnBeat,
                         noteType = detectedNoteType
                     )
@@ -156,12 +162,15 @@ class RhythmAnalyzer {
             }
 
             val totalBeats = if (sessionDuration > 0) (sessionDuration / quarterDuration).toInt() else 0
+            val avgDeviation = if (detailedHits.isNotEmpty()) {
+                totalDeviationMs.toDouble() / detailedHits.size
+            } else 0.0
 
-            val accuracy = if (detailedHits.isNotEmpty()) {
-                (hitsOnBeat.toDouble() / detailedHits.size * 100).toInt()
-            } else 0
+            val maxPenalty = allowedWindowSeconds * 1000.0 * 2.0
+            val scoreRaw = 100.0 * (1.0 - (avgDeviation / maxPenalty))
+            val accuracy = scoreRaw.coerceIn(0.0, 100.0).toInt()
 
-            return AnalysisResult(
+            return@withContext AnalysisResult(
                 bpm = targetBpm,
                 consistency = accuracy,
                 hits = detailedHits.map { (it.timeSeconds / sessionDuration).toFloat() },
@@ -171,22 +180,7 @@ class RhythmAnalyzer {
                 sessionDurationSeconds = sessionDuration
             )
         } else {
-            val intervals = mutableListOf<Double>()
-            for (i in 0 until filteredOnsets.size - 1) {
-                intervals.add(filteredOnsets[i + 1] - filteredOnsets[i])
-            }
-            val averageInterval = intervals.average()
-            val bpm = if (averageInterval > 0) (60.0 / averageInterval).toInt() else 0
-
-            var totalDeviation = 0.0
-            for (interval in intervals) {
-                totalDeviation += abs(interval - averageInterval)
-            }
-            val consistency = if (averageInterval > 0) {
-                ((1.0 - (totalDeviation / intervals.size / averageInterval)) * 100).toInt().coerceIn(0, 100)
-            } else 0
-
-            return AnalysisResult(bpm, consistency, sessionDurationSeconds = sessionDuration)
+            return@withContext AnalysisResult(0, 0, sessionDurationSeconds = sessionDuration)
         }
     }
 }

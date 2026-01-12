@@ -12,12 +12,12 @@ import be.tarsos.dsp.io.TarsosDSPAudioFormat
 import be.tarsos.dsp.io.TarsosDSPAudioInputStream
 import be.tarsos.dsp.pitch.PitchDetectionHandler
 import be.tarsos.dsp.pitch.PitchProcessor
-import be.tarsos.dsp.writer.WriterProcessor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.io.RandomAccessFile
+import kotlin.math.sqrt
 
 class AudioEngine {
 
@@ -38,7 +38,6 @@ class AudioEngine {
     private val centsHistory = mutableListOf<Int>()
 
     private var dispatcher: AudioDispatcher? = null
-
     private var audioThread: Thread? = null
 
     @Volatile
@@ -47,7 +46,7 @@ class AudioEngine {
     private var currentRecordingFile: File? = null
 
     @Volatile
-    var currentThreshold: Float = 0.15f
+    var currentThreshold: Float = 0.02f
 
     @SuppressLint("MissingPermission")
     fun start(outputFile: File? = null) {
@@ -91,16 +90,18 @@ class AudioEngine {
         dispatcher = AudioDispatcher(audioStream, BUFFER_SIZE, OVERLAP)
 
         val pitchHandler = PitchDetectionHandler { result, audioEvent ->
-            val rmsNormalized = (audioEvent.rms * 100).toFloat()
-            _amplitude.value = rmsNormalized
+            val buffer = audioEvent.floatBuffer
+            val rawRms = calculateRMS(buffer)
+
+            _amplitude.value = rawRms * 100
 
             if (ToneGenerator.isPlaying.value) {
                 return@PitchDetectionHandler
             }
 
-            val thresholdScaled = currentThreshold * 100f
+            val tunerThreshold = 0.005f
 
-            if (rmsNormalized > thresholdScaled && result.probability > PITCH_PROBABILITY_THRESHOLD && result.pitch > 20f) {
+            if (rawRms > tunerThreshold && result.probability > PITCH_PROBABILITY_THRESHOLD && result.pitch > 20f) {
                 pitchHistory.add(result.pitch)
                 if (pitchHistory.size > 3) pitchHistory.removeAt(0)
 
@@ -123,7 +124,7 @@ class AudioEngine {
 
                 _tunerResult.value = tunerResult.copy(cents = smoothedCents)
             } else {
-                if (rmsNormalized < thresholdScaled) {
+                if (rawRms < tunerThreshold) {
                     pitchHistory.clear()
                     centsHistory.clear()
                     _tunerResult.value = _tunerResult.value.copy(isLocked = false)
@@ -131,11 +132,6 @@ class AudioEngine {
             }
         }
         dispatcher?.addAudioProcessor(PitchProcessor(PitchProcessor.PitchEstimationAlgorithm.YIN, SAMPLE_RATE.toFloat(), BUFFER_SIZE, pitchHandler))
-
-        dispatcher?.addAudioProcessor(object : AudioProcessor {
-            override fun process(audioEvent: AudioEvent): Boolean { return true }
-            override fun processingFinished() {}
-        })
 
         if (outputFile != null) {
             try {
@@ -149,6 +145,7 @@ class AudioEngine {
                 e.printStackTrace()
             }
         }
+
         audioThread = Thread({
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
             dispatcher?.run()
@@ -179,6 +176,14 @@ class AudioEngine {
 
         _tunerResult.value = TunerResult()
         _amplitude.value = 0f
+    }
+
+    private fun calculateRMS(floatBuffer: FloatArray): Float {
+        var sum = 0.0
+        for (sample in floatBuffer) {
+            sum += sample * sample
+        }
+        return sqrt(sum / floatBuffer.size).toFloat()
     }
 
     private class AndroidAudioInputStream(

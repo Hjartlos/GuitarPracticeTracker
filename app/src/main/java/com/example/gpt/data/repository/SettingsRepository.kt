@@ -49,7 +49,7 @@ class SettingsRepository @Inject constructor(private val context: Context) {
     }
 
     suspend fun getInputThreshold(): Float {
-        return context.dataStore.data.first()[INPUT_THRESHOLD_KEY] ?: 0.15f
+        return context.dataStore.data.first()[INPUT_THRESHOLD_KEY] ?: 0.02f
     }
 
     suspend fun setRhythmMargin(value: Float) {
