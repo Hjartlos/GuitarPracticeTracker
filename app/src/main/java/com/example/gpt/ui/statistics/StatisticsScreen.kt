@@ -765,6 +765,7 @@ fun ScrollableRhythmTimeline(
                         val absDeviation = abs(hit.deviationMs)
 
                         val hitColor = when {
+                            hit.isGhostNote -> Color.Gray
                             hit.isOnBeat -> greenColor
                             absDeviation < 80 -> yellowColor
                             else -> redColor
@@ -825,6 +826,7 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
             displayHits.forEach { hit ->
                 val absDeviation = abs(hit.deviationMs)
                 val statusColor = when {
+                    hit.isGhostNote -> Color.Gray
                     hit.isOnBeat -> greenColor
                     absDeviation < 80 -> yellowColor
                     else -> redColor
@@ -849,7 +851,7 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        "${if (hit.deviationMs > 0) "+" else ""}${hit.deviationMs}ms",
+                        text = if(hit.isGhostNote) "Ghost" else "${if (hit.deviationMs > 0) "+" else ""}${hit.deviationMs}ms",
                         fontSize = 11.sp,
                         color = statusColor,
                         fontWeight = FontWeight.Medium,

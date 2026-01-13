@@ -17,7 +17,8 @@ data class RhythmHit(
     val beatNumber: Int,
     val deviationMs: Int,
     val isOnBeat: Boolean,
-    val noteType: String = "Quarter"
+    val noteType: String = "Quarter",
+    val isGhostNote: Boolean = false
 )
 
 data class AnalysisResult(
@@ -82,9 +83,8 @@ class RhythmAnalyzer {
                 val isInsideMetronomeWindow = metronomeClicksSeconds.any { clickTime ->
                     abs(onsetTime - clickTime) < METRONOME_BLIND_WINDOW
                 }
-
                 if (isInsideMetronomeWindow) {
-                    onsetSalience > (averageSalience * 2.0)
+                    onsetSalience > (averageSalience * 2.5)
                 } else {
                     true
                 }
@@ -100,12 +100,16 @@ class RhythmAnalyzer {
         var totalDeviationMs = 0L
         val sessionDuration = filteredOnsets.lastOrNull() ?: 0.0
 
+        val processedGridPoints = mutableSetOf<Double>()
+
         if (targetBpm > 0) {
             val quarterDuration = 60.0 / targetBpm
 
             val strictWindowMs = 25.0
             val looseWindowMs = 150.0
             val allowedWindowSeconds = (strictWindowMs + (looseWindowMs - strictWindowMs) * errorMargin) / 1000.0
+
+            val maxPenaltyMs = (allowedWindowSeconds * 1000.0 * 2.0).toLong()
 
             for (onset in filteredOnsets) {
                 val rawBeatIndex = onset / quarterDuration
@@ -114,40 +118,48 @@ class RhythmAnalyzer {
 
                 val diffQuarter = abs(onset - (nearestQuarter * quarterDuration))
                 val diffEighth = abs(positionInBeat - 0.5) * quarterDuration
-
                 val diffSixteenthA = abs(positionInBeat - 0.25) * quarterDuration
                 val diffSixteenthB = abs(positionInBeat - 0.75) * quarterDuration
-                val diffSixteenth = min(diffSixteenthA, diffSixteenthB)
 
-                val minDiff = min(diffQuarter, min(diffEighth, diffSixteenth))
+                val minDiff = min(diffQuarter, min(diffEighth, min(diffSixteenthA, diffSixteenthB)))
 
-                var deviationSeconds = diffQuarter
+                var deviationSeconds = minDiff
                 var detectedNoteType = "Miss"
                 var isOnBeat = false
+                var isGhost = false
+
+                var matchedGridTime = 0.0
+
+                if (minDiff == diffQuarter) {
+                    detectedNoteType = "Quarter"
+                    matchedGridTime = nearestQuarter * quarterDuration
+                } else if (minDiff == diffEighth) {
+                    detectedNoteType = "Eighth"
+                    matchedGridTime = (nearestQuarter + (if(rawBeatIndex > nearestQuarter) 0.5 else -0.5)) * quarterDuration
+                } else {
+                    detectedNoteType = "Sixteenth"
+                    matchedGridTime = round(onset / (quarterDuration/4)) * (quarterDuration/4)
+                }
 
                 if (minDiff <= allowedWindowSeconds) {
-                    isOnBeat = true
-                    when (minDiff) {
-                        diffQuarter -> {
-                            deviationSeconds = diffQuarter
-                            detectedNoteType = "Quarter"
-                        }
-                        diffEighth -> {
-                            deviationSeconds = diffEighth
-                            detectedNoteType = "Eighth"
-                        }
-                        else -> {
-                            deviationSeconds = diffSixteenth
-                            detectedNoteType = "Sixteenth"
-                        }
+
+                    val isDuplicate = processedGridPoints.any { abs(it - matchedGridTime) < 0.001 }
+
+                    if (isDuplicate) {
+                        isOnBeat = false
+                        isGhost = true
+                        detectedNoteType = "Ghost"
+                        totalDeviationMs += maxPenaltyMs
+                    } else {
+                        isOnBeat = true
+                        processedGridPoints.add(matchedGridTime)
+                        hitsOnBeat++
+                        totalDeviationMs += (minDiff * 1000).toLong()
                     }
-                    hitsOnBeat++
-                    totalDeviationMs += (minDiff * 1000).toLong()
                 } else {
-                    detectedNoteType = "Miss"
                     isOnBeat = false
                     deviationSeconds = minDiff
-                    totalDeviationMs += (allowedWindowSeconds * 1000).toLong() * 2
+                    totalDeviationMs += maxPenaltyMs
                 }
 
                 detailedHits.add(
@@ -156,18 +168,19 @@ class RhythmAnalyzer {
                         beatNumber = nearestQuarter,
                         deviationMs = (deviationSeconds * 1000).toInt(),
                         isOnBeat = isOnBeat,
-                        noteType = detectedNoteType
+                        noteType = detectedNoteType,
+                        isGhostNote = isGhost
                     )
                 )
             }
 
             val totalBeats = if (sessionDuration > 0) (sessionDuration / quarterDuration).toInt() else 0
+
             val avgDeviation = if (detailedHits.isNotEmpty()) {
                 totalDeviationMs.toDouble() / detailedHits.size
             } else 0.0
 
-            val maxPenalty = allowedWindowSeconds * 1000.0 * 2.0
-            val scoreRaw = 100.0 * (1.0 - (avgDeviation / maxPenalty))
+            val scoreRaw = 100.0 * (1.0 - (avgDeviation / maxPenaltyMs.toDouble()))
             val accuracy = scoreRaw.coerceIn(0.0, 100.0).toInt()
 
             return@withContext AnalysisResult(
