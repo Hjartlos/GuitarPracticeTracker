@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.gpt.R
+import com.example.gpt.ui.common.MainActivity
 import java.util.Calendar
 
 object NotificationHelper {
@@ -110,6 +111,16 @@ object NotificationHelper {
     fun showReminderNotification(context: Context) {
         if (!hasNotificationPermission(context)) return
 
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         val messages: List<Int> = listOf(
             R.string.reminder_msg_1,
             R.string.reminder_msg_2,
@@ -123,6 +134,7 @@ object NotificationHelper {
             .setContentTitle(context.getString(R.string.reminder_title))
             .setContentText(randomMessage)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 
@@ -133,11 +145,22 @@ object NotificationHelper {
     fun showGoalAchievedNotification(context: Context, goalType: String) {
         if (!hasNotificationPermission(context)) return
 
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_GOALS)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(context.getString(R.string.goal_achieved_title))
             .setContentText(context.getString(R.string.goal_achieved_message, goalType))
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 
@@ -219,4 +242,3 @@ class BootReceiver : BroadcastReceiver() {
         }
     }
 }
-

@@ -1,8 +1,10 @@
 package com.example.gpt.core.audio
 
 import android.annotation.SuppressLint
+import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.os.Build
 import android.util.Log
@@ -26,7 +28,7 @@ class AudioEngine {
         private const val SAMPLE_RATE = 44100
         private const val BUFFER_SIZE = 4096
         private const val OVERLAP = 2048
-        private const val PITCH_PROBABILITY_THRESHOLD = 0.85f
+        private const val PITCH_PROBABILITY_THRESHOLD = 0.70f
     }
 
     private val _tunerResult = MutableStateFlow(TunerResult())
@@ -48,6 +50,10 @@ class AudioEngine {
 
     @Volatile
     var currentThreshold: Float = 0.02f
+
+    @Volatile
+    var isMonitoringEnabled: Boolean = false
+    private var monitoringProcessor: MonitoringProcessor? = null
 
     @SuppressLint("MissingPermission")
     fun start(outputFile: File? = null) {
@@ -105,19 +111,24 @@ class AudioEngine {
         val audioStream = AndroidAudioInputStream(audioRecord!!, format)
         dispatcher = AudioDispatcher(audioStream, BUFFER_SIZE, OVERLAP)
 
+        monitoringProcessor = MonitoringProcessor()
+        dispatcher?.addAudioProcessor(monitoringProcessor)
+
         val pitchHandler = PitchDetectionHandler { result, audioEvent ->
             val buffer = audioEvent.floatBuffer
             val rawRms = calculateRMS(buffer)
 
-            _amplitude.value = (sqrt(rawRms) * 300).coerceAtMost(100f)
+            _amplitude.value = (sqrt(rawRms) * 400).coerceAtMost(100f)
+
+            monitoringProcessor?.updateRms(rawRms)
 
             if (ToneGenerator.isPlaying.value) {
                 return@PitchDetectionHandler
             }
 
-            val tunerThreshold = 0.005f
+            val effectiveTunerThreshold = (currentThreshold / 4f).coerceAtLeast(0.0005f)
 
-            if (rawRms > tunerThreshold && result.probability > PITCH_PROBABILITY_THRESHOLD && result.pitch > 20f) {
+            if (rawRms > effectiveTunerThreshold && result.probability > PITCH_PROBABILITY_THRESHOLD && result.pitch > 20f) {
                 pitchHistory.add(result.pitch)
                 if (pitchHistory.size > 3) pitchHistory.removeAt(0)
 
@@ -140,7 +151,7 @@ class AudioEngine {
 
                 _tunerResult.value = tunerResult.copy(cents = smoothedCents)
             } else {
-                if (rawRms < tunerThreshold) {
+                if (rawRms < effectiveTunerThreshold) {
                     pitchHistory.clear()
                     centsHistory.clear()
                     _tunerResult.value = _tunerResult.value.copy(isLocked = false)
@@ -173,6 +184,10 @@ class AudioEngine {
     fun stop() {
         if (!isRunning) return
 
+        monitoringProcessor?.release()
+        monitoringProcessor = null
+        isMonitoringEnabled = false
+
         dispatcher?.stop()
 
         try {
@@ -194,12 +209,93 @@ class AudioEngine {
         _amplitude.value = 0f
     }
 
+    fun toggleMonitoring(enabled: Boolean) {
+        isMonitoringEnabled = enabled
+    }
+
     private fun calculateRMS(floatBuffer: FloatArray): Float {
         var sum = 0.0
         for (sample in floatBuffer) {
             sum += sample * sample
         }
         return sqrt(sum / floatBuffer.size).toFloat()
+    }
+
+    private inner class MonitoringProcessor : AudioProcessor {
+        private var audioTrack: AudioTrack? = null
+        private var currentRms: Float = 0f
+
+        init {
+            val minBufferSize = AudioTrack.getMinBufferSize(
+                SAMPLE_RATE,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            )
+
+            try {
+                audioTrack = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setSampleRate(SAMPLE_RATE)
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build()
+                    )
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .setBufferSizeInBytes(minBufferSize)
+                    .build()
+
+                audioTrack?.play()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        fun updateRms(rms: Float) {
+            currentRms = rms
+        }
+
+        override fun process(audioEvent: AudioEvent): Boolean {
+            if (!isMonitoringEnabled) return true
+
+            if (currentRms < currentThreshold) {
+                return true
+            }
+
+            val floatBuffer = audioEvent.floatBuffer
+            val shortBuffer = ShortArray(floatBuffer.size)
+
+            for (i in floatBuffer.indices) {
+                val sample = (floatBuffer[i] * Short.MAX_VALUE).toInt()
+                shortBuffer[i] = sample.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            }
+
+            try {
+                audioTrack?.write(shortBuffer, 0, shortBuffer.size)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            return true
+        }
+
+        override fun processingFinished() {
+            release()
+        }
+
+        fun release() {
+            try {
+                audioTrack?.stop()
+                audioTrack?.release()
+            } catch (e: Exception) { }
+            audioTrack = null
+        }
     }
 
     private class AndroidAudioInputStream(

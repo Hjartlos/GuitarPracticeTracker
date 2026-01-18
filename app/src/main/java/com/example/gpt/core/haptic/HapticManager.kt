@@ -2,10 +2,13 @@ package com.example.gpt.core.haptic
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.media.AudioAttributes
 import android.os.Build
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import android.view.HapticFeedbackConstants
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -33,100 +36,98 @@ class HapticManager @Inject constructor(
         isEnabled = enabled
     }
 
-    fun isHapticAvailable(): Boolean {
-        return vibrator?.hasVibrator() == true
-    }
-
-    fun lightTap() {
+    fun performUIFeedback() {
         if (!isEnabled) return
+        if (vibrator == null || !vibrator.hasVibrator()) return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            vibrator?.vibrate(
-                VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(10)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val attributes = VibrationAttributes.Builder()
+                        .setUsage(VibrationAttributes.USAGE_TOUCH)
+                        .build()
+                    vibrator.vibrate(effect, attributes)
+                } else {
+                    vibrator.vibrate(effect)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(15)
+            }
+        } catch (e: Exception) {
+            Log.e("HapticManager", "UI Feedback failed", e)
         }
     }
 
-    fun mediumTap() {
+    private fun vibrateMetric(milliseconds: Long, amplitude: Int) {
+        if (vibrator == null || !vibrator.hasVibrator()) return
         if (!isEnabled) return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            vibrator?.vibrate(
-                VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(20)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val effect = VibrationEffect.createOneShot(milliseconds, amplitude)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val attributes = VibrationAttributes.Builder()
+                        .setUsage(VibrationAttributes.USAGE_MEDIA)
+                        .build()
+                    vibrator.vibrate(effect, attributes)
+                } else {
+                    val attributes = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                    vibrator.vibrate(effect, attributes)
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(milliseconds)
+            }
+        } catch (e: Exception) {
+            Log.e("HapticManager", "Metric vibration failed", e)
         }
+    }
+
+    fun performTestVibration() {
+        if (vibrator == null || !vibrator.hasVibrator()) return
+        vibrateMetric(100, 255)
+    }
+
+    fun syncBeat() {
+        vibrateMetric(60, 255)
     }
 
     fun accentBeat() {
-        if (!isEnabled) return
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            vibrator?.vibrate(
-                VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(35)
-        }
+        vibrateMetric(50, 255)
     }
 
     fun normalBeat() {
-        if (!isEnabled) return
+        vibrateMetric(20, 150)
+    }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(
-                VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(15)
-        }
+    fun lightTap() {
+        vibrateMetric(10, 80)
+    }
+
+    fun mediumTap() {
+        vibrateMetric(25, 120)
     }
 
     fun successPattern() {
         if (!isEnabled) return
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val pattern = longArrayOf(0, 50, 100, 50, 100, 100)
-            val amplitudes = intArrayOf(0, 100, 0, 100, 0, 200)
-            vibrator?.vibrate(
-                VibrationEffect.createWaveform(pattern, amplitudes, -1)
-            )
+            val timing = longArrayOf(0, 50, 50, 50, 50, 100)
+            val amplitudes = intArrayOf(0, 100, 0, 150, 0, 255)
+            try {
+                val effect = VibrationEffect.createWaveform(timing, amplitudes, -1)
+                vibrator?.vibrate(effect)
+            } catch (e: Exception) {
+                performUIFeedback()
+            }
         } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(longArrayOf(0, 50, 100, 50, 100, 100), -1)
-        }
-    }
-
-    fun errorPattern() {
-        if (!isEnabled) return
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(
-                VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(100)
-        }
-    }
-
-    fun doubleTap() {
-        if (!isEnabled) return
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            vibrator?.vibrate(
-                VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(longArrayOf(0, 20, 80, 20), -1)
+            performUIFeedback()
         }
     }
 }
@@ -134,7 +135,6 @@ class HapticManager @Inject constructor(
 @Composable
 fun rememberHapticFeedback(): (HapticType) -> Unit {
     val view = LocalView.current
-
     return remember(view) {
         { type: HapticType ->
             when (type) {
@@ -147,8 +147,5 @@ fun rememberHapticFeedback(): (HapticType) -> Unit {
 }
 
 enum class HapticType {
-    LIGHT,
-    MEDIUM,
-    HEAVY
+    LIGHT, MEDIUM, HEAVY
 }
-

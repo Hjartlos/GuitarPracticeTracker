@@ -1,7 +1,11 @@
 package com.example.gpt.ui.tuner
 
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -44,6 +48,7 @@ import com.example.gpt.core.audio.ToneGenerator
 import com.example.gpt.ui.practice.PracticeViewModel
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.sqrt
 
 @Composable
 fun TunerScreen(viewModel: PracticeViewModel) {
@@ -51,9 +56,16 @@ fun TunerScreen(viewModel: PracticeViewModel) {
     val sensitivity by viewModel.inputThreshold.collectAsState()
     val baseFrequency by viewModel.baseFrequency.collectAsState()
     val useFlats by viewModel.useFlats.collectAsState()
+    val amplitude by viewModel.amplitude.collectAsState()
 
     val isTonePlaying by ToneGenerator.isPlaying.collectAsState()
-    val isDark = isSystemInDarkTheme()
+    val isDark by viewModel.isDarkMode.collectAsState()
+
+    val animatedAmplitude by animateFloatAsState(
+        targetValue = amplitude,
+        label = "amp",
+        animationSpec = tween(50, easing = LinearEasing)
+    )
 
     DisposableEffect(Unit) {
         viewModel.startMonitoring()
@@ -95,12 +107,12 @@ fun TunerScreen(viewModel: PracticeViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(230.dp)
-                        .shadow(8.dp, RoundedCornerShape(24.dp)),
+                        .shadow(8.dp, RoundedCornerShape(16.dp)),
                     colors = CardDefaults.cardColors(
-                        containerColor = if(isDark) MaterialTheme.colorScheme.surface.copy(alpha=0.9f)
-                        else MaterialTheme.colorScheme.surface
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    shape = RoundedCornerShape(24.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         TunerGauge(
@@ -136,39 +148,116 @@ fun TunerScreen(viewModel: PracticeViewModel) {
                             .fillMaxWidth()
                             .padding(top = 8.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if(isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            val sensitivityPercent = ((0.5f - sensitivity) / 0.45f * 100).toInt().coerceIn(0, 100)
-                            Text(stringResource(R.string.mic_sensitivity_fmt, sensitivityPercent), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                            val boxBgColor = if (isDark) Color.Black else Color(0xFFE0E0E0)
+                            val thresholdLineColor = if (isDark) Color.White else Color.Black
+                            val gateTextColor = if (isDark) Color.Gray else Color.Black
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(24.dp)
+                                    .background(boxBgColor, RoundedCornerShape(4.dp))
+                                    .padding(2.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                val progress = (animatedAmplitude / 100f).coerceIn(0f, 1f)
+                                val thresholdVisualPos = (sqrt(sensitivity) * 3f).coerceIn(0f, 1f)
+                                val isGateOpen = progress > thresholdVisualPos
+                                val thresholdBias = (thresholdVisualPos * 2f) - 1f
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(progress)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(
+                                            if (isGateOpen) Color(0xFF00E676)
+                                            else Color(0xFFD50000)
+                                        )
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .width(2.dp)
+                                        .align(BiasAlignment(thresholdBias, 0f))
+                                        .background(thresholdLineColor)
+                                )
+
+                                Text(
+                                    text = if (isGateOpen) stringResource(R.string.gate_open) else stringResource(R.string.gate_closed),
+                                    color = gateTextColor,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .align(Alignment.CenterEnd)
+                                        .padding(end = 6.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            val sliderPosition = 1f - (sqrt(sensitivity) * 3f).coerceIn(0f, 1f)
+                            val sensitivityPercent = if (sliderPosition > 0.96f) 100 else (sliderPosition * 100).toInt()
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    stringResource(R.string.mic_sensitivity_fmt, sensitivityPercent),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
                             Slider(
-                                value = (0.5f - sensitivity) / 0.45f,
-                                onValueChange = { sliderValue ->
-                                    val newThreshold = 0.5f - (sliderValue * 0.45f)
+                                value = sliderPosition,
+                                onValueChange = {
+                                    val invertedPos = 1f - it
+                                    val linear = (invertedPos / 3f)
+                                    val newThreshold = (linear * linear).coerceAtLeast(0.0001f)
                                     viewModel.setInputThreshold(newThreshold)
                                 },
                                 valueRange = 0f..1f,
-                                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
+                                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                             )
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(stringResource(R.string.reference_pitch_fmt), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text("${baseFrequency} Hz", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                Text(
+                                    stringResource(R.string.reference_pitch_fmt),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "${baseFrequency} Hz",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                             Slider(
                                 value = baseFrequency.toFloat(),
                                 onValueChange = { viewModel.setBaseFrequency(it.toInt()) },
                                 valueRange = 415f..466f,
                                 steps = 50,
-                                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary)
+                                colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                             )
                         }
                     }
@@ -254,20 +343,20 @@ fun CompactStringCard(
     onEdit: () -> Unit
 ) {
     val targetColor = when {
-        isPerfect -> Color(0xFF00E676)
-        isAlreadyTuned -> Color(0xFF1B5E20).copy(alpha = 0.6f)
+        isPerfect -> MaterialTheme.colorScheme.tertiary
+        isAlreadyTuned -> MaterialTheme.colorScheme.secondary
         isDetecting -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+        else -> MaterialTheme.colorScheme.surface
     }
 
     val animatedBg by animateColorAsState(targetColor, label = "cardBg")
-    val borderColor = if (isPerfect) Color(0xFF00E676) else MaterialTheme.colorScheme.primary
+    val borderColor = if (isPerfect) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
     val borderStroke = if (isDetecting) 2.dp else 0.dp
 
     val stringColor = when {
         isPerfect -> Color.White
         isDetecting -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     val stringThickness = when(guitarString.id) {
@@ -288,7 +377,8 @@ fun CompactStringCard(
             .clickable(enabled = !isTonePlaying) { onPlay() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = animatedBg),
-        border = if (isDetecting) BorderStroke(borderStroke, borderColor) else null
+        border = if (isDetecting) BorderStroke(borderStroke, borderColor) else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Canvas(
@@ -335,7 +425,7 @@ fun CompactStringCard(
                     text = stringResource(R.string.string_n, guitarString.id),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if(isPerfect) Color.White.copy(alpha=0.9f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                    color = if(isPerfect) Color.White else MaterialTheme.colorScheme.primary,
                     letterSpacing = 0.5.sp
                 )
                 Spacer(modifier = Modifier.height(2.dp))
@@ -344,12 +434,12 @@ fun CompactStringCard(
                     text = guitarString.fullName(),
                     fontWeight = FontWeight.Black,
                     fontSize = 24.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if(isPerfect) Color.White else MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${String.format(Locale.US, "%.1f", guitarString.frequency)} Hz",
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if(isPerfect) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -358,7 +448,7 @@ fun CompactStringCard(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
-                    tint = if(isPerfect) Color.White else Color(0xFF00E676),
+                    tint = if(isPerfect) Color.White else MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp)
@@ -375,7 +465,7 @@ fun CompactStringCard(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = stringResource(R.string.edit),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    tint = if(isPerfect) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp)
                 )
             }
@@ -483,9 +573,20 @@ fun EditStringDialog(
 
 @Composable
 fun StringsSelector(current: Int, onSelect: (Int) -> Unit) {
-    Row(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.surface, CircleShape)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         listOf(6, 7).forEach { count ->
-            Box(modifier = Modifier.clip(CircleShape).background(if (current == count) MaterialTheme.colorScheme.primary else Color.Transparent).clickable { onSelect(count) }.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (current == count) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .clickable { onSelect(count) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
                 val textColor = if (current == count) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                 Text("$count", color = textColor, fontWeight = FontWeight.Bold)
             }

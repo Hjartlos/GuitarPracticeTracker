@@ -87,7 +87,7 @@
     <string name="latency_comp_fmt">Opóźnienie Audio (%dms)</string>
     <string name="latency_expl">Kompensuje opóźnienie sprzętowe. Zwiększ, jeśli Analiza Rytmu pokazuje, że grasz "Za późno".</string>
     <string name="manual_calib_title">Dostosowanie Ręczne</string>
-    <string name="manual_offset">Dostosuj ręcznie:</string>
+    <string name="manual_offset">Przesunięcie:</string>
     <string name="calibrating">Kalibracja...</string>
     <string name="latency_preparing">Przygotowanie...</string>
     <string name="latency_listen">Słucham...</string>
@@ -103,8 +103,9 @@
     <string name="rhythm_strictness_fmt">Margines błędu: %d%%</string>
     <string name="rhythm_strictness_desc">Określa jak precyzyjnie musisz trafić w punkt.</string>
     <string name="rhythm_strictness_expl">Określa, jak precyzyjnie musisz trafić w punkt. Mniejszy margines = Trudniej.</string>
-    <string name="strictness_normal">Wyrozumiały</string>
-    <string name="strictness_strict">Precyzyjny</string>
+    <string name="strictness_easy">Łatwy (Szeroki)</string>
+    <string name="strictness_normal">Średni</string>
+    <string name="strictness_strict">Ekspert (Wąski)</string>
     <string name="export_data">Eksport Danych</string>
     <string name="export_desc">Zapisz lub Udostępnij CSV</string>
     <string name="import_data">Import Danych</string>
@@ -237,7 +238,7 @@
     <string name="achievement_night_owl_desc">Ćwicz po 22:00 w 5 różnych dni (min. 5 minut)</string>
     <string name="achievement_perfect_pitch_title">Idealny Słuch</string>
     <string name="achievement_perfect_pitch_desc">Dostrój gitarę idealnie 100 razy</string>
-    <string name="auto_calibrate_btn">Prawdziwa Auto-Kalibracja</string>
+    <string name="auto_calibrate_btn">Auto-Kalibracja</string>
     <string name="tap_calibration_ready">Przygotuj się...</string>
     <string name="tap_calibration_listen">Słuchanie... (nie dotykaj)</string>
     <string name="tap_calibration_done">Kalibracja zakończona!</string>
@@ -245,6 +246,12 @@
     <string name="tap_calibration_not_enough">Błąd pomiaru. Spróbuj ponownie.</string>
     <string name="calibration_step_fmt">Pomiar %1$d z %2$d...</string>
     <string name="calibration_hold_near">Upewnij się, że telefon jest podgłoszony</string>
-    <string name="mic_sensitivity_label">Czułość Mikrofonu (Threshold)</string>
-    <string name="mic_sensitivity_expl">100%% = Wysoka czułość (wykrywa ciche dźwięki). Ustaw tak, by pasek reagował na grę, a ignorował ciszę.</string>
+    <string name="mic_sensitivity_label">Czułość Mikrofonu</string>
+    <string name="mic_sensitivity_expl">100% = Wysoka czułość (wykrywa ciche dźwięki). Ustaw tak, by pasek reagował na grę, a ignorował ciszę.</string>
+    <string name="stats_ghost">Duch</string>
+    <string name="monitoring_listen">Słuchaj</string>
+    <string name="monitoring_stop">Stop</string>
+    <string name="gate_open">BRAMKA: OTWARTA</string>
+    <string name="gate_closed">BRAMKA: ZAMKNIĘTA</string>
+    <string name="feedback_warning">Użyj słuchawek, aby uniknąć sprzężenia!</string>
 </resources>

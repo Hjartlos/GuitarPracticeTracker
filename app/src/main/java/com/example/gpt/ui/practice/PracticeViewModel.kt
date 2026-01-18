@@ -1,7 +1,12 @@
 package com.example.gpt.ui.practice
 
 import android.app.Application
+import android.content.Context
+import android.os.PowerManager
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.example.gpt.R
 import com.example.gpt.core.audio.AnalysisResult
@@ -46,7 +51,7 @@ class PracticeViewModel @Inject constructor(
     private val hapticManager: HapticManager,
     private val achievementRepository: AchievementRepository,
     application: Application
-) : AndroidViewModel(application) {
+) : AndroidViewModel(application), LifecycleEventObserver {
 
     private val rhythmAnalyzer = RhythmAnalyzer()
     private val metronome = Metronome()
@@ -127,6 +132,10 @@ class PracticeViewModel @Inject constructor(
     private var testMetronomeJob: Job? = null
     private val _isTestMetronomeRunning = MutableStateFlow(false)
     val isTestMetronomeRunning = _isTestMetronomeRunning.asStateFlow()
+
+    private var syncTestJob: Job? = null
+    private val _isSyncTestRunning = MutableStateFlow(false)
+
     private val _isSessionActive = MutableStateFlow(false)
     val isSessionActive = _isSessionActive.asStateFlow()
 
@@ -166,6 +175,9 @@ class PracticeViewModel @Inject constructor(
     private val _tapCalibrationProgress = MutableStateFlow("")
     val tapCalibrationProgress = _tapCalibrationProgress.asStateFlow()
 
+    private val _isMonitoringEnabled = MutableStateFlow(false)
+    val isMonitoringEnabled = _isMonitoringEnabled.asStateFlow()
+
     private var tapTimestamps = mutableListOf<Long>()
     private var clickTimestamps = mutableListOf<Long>()
     val allSessions = sessionDao.getAllSessions()
@@ -192,11 +204,31 @@ class PracticeViewModel @Inject constructor(
 
     private val recordedMetronomeClicks = mutableListOf<Double>()
     private var sessionStartTime: Long = 0
+    private var wakeLock: PowerManager.WakeLock? = null
 
     init {
         initializeSettings()
         setupMetronomeCallback()
         initializeAchievements()
+
+        val powerManager = application.getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "GuitarTracker:RecordingWakeLock")
+    }
+
+    override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+        if (event == Lifecycle.Event.ON_STOP) {
+            onAppBackgrounded()
+        }
+    }
+
+    private fun onAppBackgrounded() {
+        if (_isSessionActive.value) {
+        } else {
+            stopAudioPlayback()
+            stopTestMetronome()
+            stopSyncTest()
+            audioEngine.stop()
+        }
     }
 
     private fun initializeAchievements() {
@@ -220,7 +252,6 @@ class PracticeViewModel @Inject constructor(
             if (_exerciseType.value.isEmpty()) {
                 _exerciseType.value = getApplication<Application>().getString(R.string.ex_scales)
             }
-
         }
         viewModelScope.launch {
             _currentLanguage
@@ -231,26 +262,36 @@ class PracticeViewModel @Inject constructor(
         }
     }
 
+    fun triggerTestVibration() {
+        hapticManager.performTestVibration()
+    }
+
     private fun setupMetronomeCallback() {
         metronome.onBeatTick = { beatIndex, isAccent ->
             val delayMs = _metronomeOffset.value.toLong()
+
             if (_isSessionActive.value && sessionStartTime > 0) {
-                val clickTimeSeconds = (System.currentTimeMillis() - sessionStartTime + delayMs) / 1000.0
+                val clickTimeSeconds = (System.currentTimeMillis() - sessionStartTime) / 1000.0
                 recordedMetronomeClicks.add(clickTimeSeconds)
             }
 
             viewModelScope.launch(Dispatchers.Default) {
-                if (delayMs > 0) {
-                    delay(delayMs)
-                }
+                if (delayMs > 0) delay(delayMs)
+
                 withContext(Dispatchers.Main.immediate) {
                     _currentPlayingBeat.value = beatIndex + 1
 
-                    if (_isHapticEnabled.value) {
-                        if (effectiveBpmValue > 220) {
-                            if (isAccent) hapticManager.lightTap()
+                    val shouldVibrate = _isHapticEnabled.value || _isSyncTestRunning.value
+
+                    if (shouldVibrate) {
+                        if (_isSyncTestRunning.value) {
+                            if (isAccent) hapticManager.syncBeat()
                         } else {
-                            hapticManager.lightTap()
+                            if (effectiveBpmValue > 220) {
+                                if (isAccent) hapticManager.accentBeat()
+                            } else {
+                                if (isAccent) hapticManager.accentBeat() else hapticManager.mediumTap()
+                            }
                         }
                     }
                 }
@@ -261,7 +302,11 @@ class PracticeViewModel @Inject constructor(
     private fun updateMetronomeSpeed() {
         val ts = _timeSignature.value
         val denominator = ts.split("/").getOrNull(1)?.toIntOrNull() ?: 4
-        val multiplier = if (denominator == 8) 2 else 1
+        val multiplier = when (denominator) {
+            8 -> 2
+            16 -> 4
+            else -> 1
+        }
 
         val baseBpm = _metronomeBpm.value
         effectiveBpmValue = baseBpm * multiplier
@@ -282,9 +327,14 @@ class PracticeViewModel @Inject constructor(
 
         viewModelScope.launch(Dispatchers.IO) {
             val file = File(session.audioPath)
+
+            val ts = session.timeSignature
+            val denominator = ts.split("/").getOrNull(1)?.toIntOrNull() ?: 4
+
             val result = rhythmAnalyzer.analyze(
                 audioFile = file,
                 targetBpm = session.avgBpm,
+                timeSignatureDenominator = denominator,
                 threshold = _inputThreshold.value,
                 errorMargin = _rhythmMargin.value,
                 latencyMs = _latencyOffset.value
@@ -301,6 +351,7 @@ class PracticeViewModel @Inject constructor(
             }
         }
     }
+
     fun toggleTestMetronome() {
         if (_isTestMetronomeRunning.value) stopTestMetronome() else startTestMetronome()
     }
@@ -309,7 +360,7 @@ class PracticeViewModel @Inject constructor(
         _isTestMetronomeRunning.value = true
         testMetronomeJob = viewModelScope.launch(Dispatchers.Default) {
             while (_isTestMetronomeRunning.value) {
-                ToneGenerator.playTone(880f, 100)
+                ToneGenerator.playMetronomeClick()
                 delay(1000)
             }
         }
@@ -319,6 +370,22 @@ class PracticeViewModel @Inject constructor(
         _isTestMetronomeRunning.value = false
         testMetronomeJob?.cancel()
     }
+
+    fun startSyncTest() {
+        if (_isSyncTestRunning.value) return
+        _isSyncTestRunning.value = true
+        metronome.setBpm(100)
+        metronome.setTimeSignature(4)
+        effectiveBpmValue = 100
+
+        metronome.start()
+    }
+
+    fun stopSyncTest() {
+        _isSyncTestRunning.value = false
+        metronome.stop()
+    }
+
     fun runLatencyAutoCalibration() {
         startAcousticCalibration()
     }
@@ -329,6 +396,7 @@ class PracticeViewModel @Inject constructor(
         val context = getApplication<Application>()
         _isTapCalibrating.value = true
         _isLatencyTesting.value = true
+        _tapCalibrationBeat.value = 0
         _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_ready)
 
         startMonitoring()
@@ -344,12 +412,12 @@ class PracticeViewModel @Inject constructor(
             for (i in 1..iterations) {
                 withContext(Dispatchers.Main) {
                     _tapCalibrationProgress.value = context.getString(R.string.calibration_step_fmt, i, iterations)
+                    _tapCalibrationBeat.value = i
                 }
 
                 delay(500)
 
                 val startTime = System.nanoTime()
-
                 ToneGenerator.playCalibrationTone(1000f, 100)
 
                 var beepDetected = false
@@ -386,7 +454,7 @@ class PracticeViewModel @Inject constructor(
                     } else sorted
 
                     val avgLatency = validData.average().toInt()
-                    val finalLatency = (avgLatency - 20).coerceAtLeast(0)
+                    val finalLatency = (avgLatency - 20).coerceIn(0, 300)
 
                     setLatencyOffset(finalLatency)
 
@@ -417,6 +485,21 @@ class PracticeViewModel @Inject constructor(
         _isTapCalibrating.value = false
         _isLatencyTesting.value = false
         _tapCalibrationProgress.value = ""
+    }
+
+    fun stopAudioPlayback() {
+        playbackManager.release()
+    }
+
+    fun toggleAudioMonitoring() {
+        val newState = !_isMonitoringEnabled.value
+        _isMonitoringEnabled.value = newState
+        audioEngine.toggleMonitoring(newState)
+    }
+
+    fun stopAudioMonitoring() {
+        _isMonitoringEnabled.value = false
+        audioEngine.toggleMonitoring(false)
     }
 
     fun setInputThreshold(value: Float) {
@@ -508,7 +591,12 @@ class PracticeViewModel @Inject constructor(
     fun setMetronomeBpm(bpm: Int) {
         val ts = _timeSignature.value
         val denominator = ts.split("/").getOrNull(1)?.toIntOrNull() ?: 4
-        val maxAllowed = if (denominator == 8) 150 else 300
+
+        val maxAllowed = when(denominator) {
+            8 -> 150
+            16 -> 75
+            else -> 300
+        }
 
         val safeBpm = bpm.coerceIn(20, maxAllowed)
         _metronomeBpm.value = safeBpm
@@ -521,8 +609,12 @@ class PracticeViewModel @Inject constructor(
         val value = parts.getOrNull(1)?.toIntOrNull() ?: 4
 
         _timeSignature.value = "$beats/$value"
-        if (value == 8 && _metronomeBpm.value > 150) {
+
+        val currentBpm = _metronomeBpm.value
+        if (value == 8 && currentBpm > 150) {
             _metronomeBpm.value = 150
+        } else if (value == 16 && currentBpm > 75) {
+            _metronomeBpm.value = 75
         }
 
         val newPattern = List(beats) { index ->
@@ -577,7 +669,12 @@ class PracticeViewModel @Inject constructor(
         currentRecordingFile = File(getApplication<Application>().cacheDir, "temp_session.wav")
 
         recordedMetronomeClicks.clear()
-        sessionStartTime = 0
+
+        try {
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire(10 * 60 * 1000L)
+            }
+        } catch (e: Exception) { e.printStackTrace() }
 
         sessionStartupJob = viewModelScope.launch(Dispatchers.Main) {
             if (_isMetronomeEnabled.value) {
@@ -586,9 +683,10 @@ class PracticeViewModel @Inject constructor(
                 val parts = _timeSignature.value.split("/")
                 val value = parts.getOrNull(1)?.toIntOrNull() ?: 4
                 metronome.setPattern(_beatPattern.value, value)
-                metronome.start()
 
                 _isCountingIn.value = true
+                metronome.start()
+
                 val beatDurationMs = (60_000.0 / effectiveBpmValue)
                 val barDurationMs = (beatDurationMs * _beatPattern.value.size).toLong()
 
@@ -599,7 +697,6 @@ class PracticeViewModel @Inject constructor(
             withContext(Dispatchers.IO) {
                 audioEngine.start(currentRecordingFile!!)
             }
-
             sessionStartTime = System.currentTimeMillis()
 
             timerJob = launch {
@@ -619,6 +716,12 @@ class PracticeViewModel @Inject constructor(
         timerJob?.cancel()
         metronome.stop()
         _currentPlayingBeat.value = 1
+
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (e: Exception) { e.printStackTrace() }
 
         saveCurrentSession()
 
@@ -652,7 +755,12 @@ class PracticeViewModel @Inject constructor(
             val shouldAnalyze = wasMetronomeOn && isAnalysisRequested
 
             val denominator = currentTs.split("/").getOrNull(1)?.toIntOrNull() ?: 4
-            val multiplier = if (denominator == 8) 2 else 1
+
+            val multiplier = when (denominator) {
+                8 -> 2
+                16 -> 4
+                else -> 1
+            }
 
             val analysisTargetBpm = if (shouldAnalyze) currentBpm * multiplier else 0
 
@@ -661,6 +769,7 @@ class PracticeViewModel @Inject constructor(
             val result = rhythmAnalyzer.analyze(
                 audioFile = file,
                 targetBpm = analysisTargetBpm,
+                timeSignatureDenominator = denominator,
                 threshold = _inputThreshold.value,
                 errorMargin = _rhythmMargin.value,
                 latencyMs = _latencyOffset.value,
@@ -888,5 +997,9 @@ class PracticeViewModel @Inject constructor(
         audioEngine.stop()
         timerJob?.cancel()
         sessionStartupJob?.cancel()
+
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        } catch(e: Exception) { }
     }
 }

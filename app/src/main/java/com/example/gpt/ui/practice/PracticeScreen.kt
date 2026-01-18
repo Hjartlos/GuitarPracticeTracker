@@ -70,9 +70,6 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
 
     val beatPattern by viewModel.beatPattern.collectAsState()
     val currentPlayingBeat by viewModel.currentPlayingBeat.collectAsState()
-    val isMetronomePlaying by viewModel.isMetronomePlaying.collectAsState()
-
-    val amplitude by viewModel.amplitude.collectAsState()
 
     val scrollState = rememberScrollState()
     val isDark = isSystemInDarkTheme()
@@ -131,7 +128,7 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                                 fontSize = 64.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSessionActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                color = if (isSessionActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.displayLarge
                             )
                         }
@@ -143,7 +140,7 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                             text = stringResource(R.string.rhythm_pattern),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.6f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             letterSpacing = 1.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -158,9 +155,9 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                            LegendItem(color = Color(0xFFD32F2F), label = stringResource(R.string.accent))
+                            LegendItem(color = MaterialTheme.colorScheme.primary, label = stringResource(R.string.accent))
                             Spacer(modifier = Modifier.width(12.dp))
-                            LegendItem(color = Color(0xFF8B0000), label = stringResource(R.string.beat))
+                            LegendItem(color = MaterialTheme.colorScheme.secondary, label = stringResource(R.string.beat))
                             Spacer(modifier = Modifier.width(12.dp))
                             LegendItem(color = Color.Gray.copy(alpha=0.5f), label = stringResource(R.string.mute))
                         }
@@ -207,10 +204,10 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                             .fillMaxSize()
                             .background(
                                 Brush.linearGradient(
-                                    colors = if (isSessionActive)
-                                        listOf(Color(0xFFB71C1C), Color(0xFFD32F2F))
-                                    else
-                                        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary
+                                    )
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -230,8 +227,9 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
             if (!isSessionActive) {
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -314,7 +312,11 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                             val currentBeats = parts.getOrNull(0)?.toIntOrNull() ?: 4
                             val currentNoteValue = parts.getOrNull(1)?.toIntOrNull() ?: 4
 
-                            val maxSliderValue = if (currentNoteValue == 8) 150f else 300f
+                            val maxSliderValue = when(currentNoteValue) {
+                                8 -> 150f
+                                16 -> 75f
+                                else -> 300f
+                            }
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -369,7 +371,7 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                                 )
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf(4, 8).forEach { value ->
+                                    listOf(4, 8, 16).forEach { value ->
                                         FilterChip(
                                             selected = currentNoteValue == value,
                                             onClick = { viewModel.setMetronomeTimeSignature("$currentBeats/$value") },
@@ -413,7 +415,8 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                 )
 
                 val firstExerciseName = stringResource(R.string.ex_scales)
-                LaunchedEffect(exerciseType) {
+
+                LaunchedEffect(Unit) {
                     if (exerciseType.isEmpty()) {
                         viewModel.updateExerciseType(firstExerciseName)
                     }
@@ -504,8 +507,9 @@ fun DashboardHeader(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surface
         ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
@@ -567,7 +571,7 @@ fun DashboardHeader(
                     .fillMaxWidth()
                     .height(10.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = if(isDark) 0.08f else 0.15f))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Box(
                     modifier = Modifier
@@ -577,7 +581,7 @@ fun DashboardHeader(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     MaterialTheme.colorScheme.primary,
-                                    Color(0xFFFF5252)
+                                    MaterialTheme.colorScheme.secondary
                                 )
                             )
                         )
@@ -591,7 +595,7 @@ fun DashboardHeader(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = String.format(java.util.Locale.US, "%.1fh / %dh", currentHours, weeklyGoalHours),
+                    text = stringResource(R.string.weekly_progress_fmt, currentHours.toInt(), weeklyGoalHours),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -621,7 +625,7 @@ fun RecordingDot() {
         modifier = Modifier
             .size(16.dp)
             .clip(CircleShape)
-            .background(Color.Red.copy(alpha = alpha))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha))
     )
 }
 
@@ -646,12 +650,16 @@ fun InteractiveMetronomeDisplay(
 
     val strokeWidth = 24f
 
+    val accentColor = MaterialTheme.colorScheme.primary
+    val normalColor = MaterialTheme.colorScheme.secondary
+    val muteColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.3f)
+
     val animatedColors = beatPattern.mapIndexed { index, type ->
         val isPlayingNow = (index + 1) == currentPlayingBeat
         val baseColor = when(type) {
-            BeatType.ACCENT -> Color(0xFFD32F2F)
-            BeatType.NORMAL -> Color(0xFF8B0000)
-            BeatType.MUTE -> Color.Gray.copy(alpha=0.3f)
+            BeatType.ACCENT -> accentColor
+            BeatType.NORMAL -> normalColor
+            BeatType.MUTE -> muteColor
         }
         animateColorAsState(
             targetValue = if(isPlayingNow) Color.White else baseColor,
@@ -724,7 +732,7 @@ fun InteractiveMetronomeDisplay(
                 text = currentPlayingBeat.toString(),
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                color = if(isSystemInDarkTheme()) Color.White else MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
         } else {
             Icon(

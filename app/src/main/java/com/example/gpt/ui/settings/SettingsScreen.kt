@@ -1,5 +1,6 @@
 package com.example.gpt.ui.settings
 
+import androidx.compose.ui.BiasAlignment
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -8,11 +9,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -27,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -38,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.sqrt
 
 @Composable
 fun SettingsScreen(viewModel: PracticeViewModel) {
@@ -242,7 +247,12 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                 ) {
                     Switch(
                         checked = isHapticEnabled,
-                        onCheckedChange = { viewModel.setHapticEnabled(it) },
+                        onCheckedChange = { enabled ->
+                            viewModel.setHapticEnabled(enabled)
+                            if (enabled) {
+                                viewModel.triggerTestVibration()
+                            }
+                        },
                         colors = SwitchDefaults.colors(checkedTrackColor = MaterialTheme.colorScheme.primary)
                     )
                 }
@@ -269,7 +279,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = displayLanguage
                 ) {
                     IconButton(onClick = { showLanguageDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Change Language", tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
+                        Icon(Icons.Default.Edit, contentDescription = "Change Language", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -281,7 +291,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.show_tutorial_desc)
                 ) {
                     IconButton(onClick = { showTutorialDialog = true }) {
-                        Icon(Icons.Default.School, contentDescription = "Tutorial", tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
+                        Icon(Icons.Default.School, contentDescription = "Tutorial", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -293,12 +303,12 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.about_desc)
                 ) {
                     IconButton(onClick = { showAboutDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "About", tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "About", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(50.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 
@@ -311,7 +321,11 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
     }
 
     if (showCalibrationDialog) {
-        CalibrationDialog(viewModel = viewModel, onDismiss = { showCalibrationDialog = false; viewModel.stopTestMetronome() })
+        CalibrationDialog(viewModel = viewModel, onDismiss = {
+            showCalibrationDialog = false
+            viewModel.stopTestMetronome()
+            viewModel.stopSyncTest()
+        })
     }
 
     if (showLanguageDialog) {
@@ -345,8 +359,12 @@ fun SettingsSectionTitle(title: String) {
 fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-        shape = RoundedCornerShape(16.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             content()
@@ -368,7 +386,7 @@ fun SettingRow(icon: ImageVector, title: String, subtitle: String, trailing: @Co
                 Text(title, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1)
                 Text(
                     text = subtitle,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 12.sp,
                     lineHeight = 14.sp
                 )
@@ -453,12 +471,21 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
     val tapBeat by viewModel.tapCalibrationBeat.collectAsState()
 
     val amplitude by viewModel.amplitude.collectAsState()
-    val animatedAmplitude by animateFloatAsState(targetValue = amplitude, label = "amp")
+    val animatedAmplitude by animateFloatAsState(
+        targetValue = amplitude,
+        label = "amp",
+        animationSpec = tween(50, easing = LinearEasing)
+    )
+    val isMonitoring by viewModel.isMonitoringEnabled.collectAsState()
+    val isDark by viewModel.isDarkMode.collectAsState()
 
     DisposableEffect(Unit) {
         viewModel.startMonitoring()
         onDispose {
+            viewModel.stopAudioMonitoring()
             viewModel.stopMonitoring()
+            viewModel.stopSyncTest()
+            viewModel.stopTestMetronome()
         }
     }
 
@@ -484,20 +511,92 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                         Text(if(isTestRunning) stringResource(R.string.stop_test) else stringResource(R.string.play_click), fontSize = 12.sp)
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
+                    Button(
+                        onClick = { viewModel.toggleAudioMonitoring() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if(isMonitoring) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if(isMonitoring) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                            contentDescription = "Monitor",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if(isMonitoring) stringResource(R.string.monitoring_stop) else stringResource(R.string.monitoring_listen),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val boxBgColor = if (isDark) Color.Black else Color(0xFFE0E0E0)
+                val thresholdLineColor = if (isDark) Color.White else Color.Black
+                val gateTextColor = if (isDark) Color.Gray else Color.Black
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .background(boxBgColor, RoundedCornerShape(4.dp))
+                        .padding(2.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     val progress = (animatedAmplitude / 100f).coerceIn(0f, 1f)
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
-                        color = if (progress > (threshold * 2)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
-                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                    val thresholdVisualPos = (sqrt(threshold) * 3f).coerceIn(0f, 1f)
+                    val isGateOpen = progress > thresholdVisualPos
+                    val thresholdBias = (thresholdVisualPos * 2f) - 1f
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                if (isGateOpen) Color(0xFF00C853)
+                                else Color(0xFFD50000)
+                            )
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(2.dp)
+                            .align(BiasAlignment(thresholdBias, 0f))
+                            .background(thresholdLineColor)
+                    )
+
+                    Text(
+                        text = if (isGateOpen) stringResource(R.string.gate_open) else stringResource(R.string.gate_closed),
+                        color = gateTextColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 6.dp)
                     )
                 }
+
+                if (isMonitoring) {
+                    Text(
+                        text = stringResource(R.string.feedback_warning),
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val sliderThreshold = (threshold / 0.2f).coerceIn(0f, 1f)
-                val sensitivityPercent = ((1f - sliderThreshold) * 100).toInt()
+                val sliderPosition = 1f - (sqrt(threshold) * 3f).coerceIn(0f, 1f)
+                val sensitivityPercent = if (sliderPosition > 0.96f) 100 else (sliderPosition * 100).toInt()
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.mic_sensitivity_label), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
@@ -505,41 +604,60 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                 }
 
                 Slider(
-                    value = sliderThreshold,
+                    value = sliderPosition,
                     onValueChange = {
-                        viewModel.setInputThreshold((it * 0.2f).coerceAtLeast(0.001f))
+                        val invertedPos = 1f - it
+                        val linear = (invertedPos / 3f)
+                        val newThreshold = (linear * linear).coerceAtLeast(0.0001f)
+                        viewModel.setInputThreshold(newThreshold)
                     },
                     valueRange = 0f..1f,
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
-                Text(
-                    text = stringResource(R.string.mic_sensitivity_expl),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = stringResource(R.string.mic_sensitivity_expl), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
 
                 Text(stringResource(R.string.latency_label), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
                 if (isTapCalibrating) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(tapProgress, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = tapProgress,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                textAlign = TextAlign.Center
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                repeat(8) { index ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                repeat(5) { index ->
                                     val isActive = tapBeat >= index + 1
-                                    Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha=0.2f)))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isActive) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onPrimary.copy(alpha=0.3f)
+                                            )
+                                    )
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                stringResource(R.string.calibration_hold_near),
+                                text = stringResource(R.string.calibration_hold_near),
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha=0.7f),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha=0.8f),
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -548,14 +666,14 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                         onClick = { viewModel.runLatencyAutoCalibration() },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         enabled = !isLatencyTesting,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = Color.Black)
                     ) {
                         Text(if (isLatencyTesting) stringResource(R.string.calibrating) else stringResource(R.string.auto_calibrate_btn))
                     }
                 }
 
                 if (latencyResult != null && !isTapCalibrating) {
-                    Text(latencyResult!!, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(4.dp))
+                    Text(latencyResult!!, color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(4.dp))
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -570,52 +688,54 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     valueRange = 0f..300f,
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
-                Text(
-                    text = stringResource(R.string.latency_expl),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = stringResource(R.string.latency_expl), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
 
                 Text(stringResource(R.string.metronome_sync_title), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.manual_offset), style = MaterialTheme.typography.bodyMedium)
                     Text("${metronomeOffset}ms", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 }
+
                 Slider(
                     value = metronomeOffset.toFloat(),
-                    onValueChange = { viewModel.setMetronomeOffset(it.toInt()) },
-                    valueRange = 0f..200f,
+                    onValueChange = {
+                        viewModel.setMetronomeOffset(it.toInt())
+                        viewModel.startSyncTest()
+                    },
+                    onValueChangeFinished = {
+                        viewModel.stopSyncTest()
+                    },
+                    valueRange = 0f..400f,
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
-                Text(
-                    text = stringResource(R.string.metronome_sync_expl),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = stringResource(R.string.metronome_sync_expl), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
 
                 Text(stringResource(R.string.rhythm_strictness_title), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
-                val strictnessPercent = ((1f - margin) * 100).toInt()
+                val marginPercent = (margin * 100).toInt()
+
+                val difficultyText = when {
+                    marginPercent < 30 -> stringResource(R.string.strictness_strict)
+                    marginPercent < 70 -> stringResource(R.string.strictness_normal)
+                    else -> stringResource(R.string.strictness_easy)
+                }
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(R.string.rhythm_strictness_fmt, strictnessPercent), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.rhythm_strictness_fmt, marginPercent), style = MaterialTheme.typography.bodyMedium)
+                    Text(difficultyText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
 
                 Slider(
-                    value = 1f - margin,
-                    onValueChange = { viewModel.setRhythmMargin(1f - it) },
+                    value = margin,
+                    onValueChange = { viewModel.setRhythmMargin(it) },
                     valueRange = 0f..1f,
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
-                Text(
-                    text = stringResource(R.string.rhythm_strictness_expl),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = stringResource(R.string.rhythm_strictness_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
         confirmButton = {
@@ -649,7 +769,6 @@ fun GoalDialog(current: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
         containerColor = MaterialTheme.colorScheme.surface
     )
 }
-
 @Composable
 fun LanguageDialog(currentCode: String, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
     AlertDialog(
@@ -758,6 +877,7 @@ fun TutorialDialog(onDismiss: () -> Unit) {
                 )
             }
         },
+
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.close), color = MaterialTheme.colorScheme.primary)
@@ -767,7 +887,6 @@ fun TutorialDialog(onDismiss: () -> Unit) {
         shape = RoundedCornerShape(16.dp)
     )
 }
-
 @Composable
 fun NotificationsSection() {
     val context = LocalContext.current
@@ -885,6 +1004,7 @@ fun TimePickerDialog(
                 TimePicker(state = timePickerState)
             }
         },
+
         confirmButton = {
             TextButton(onClick = { onConfirm(timePickerState.hour, timePickerState.minute) }) {
                 Text(stringResource(R.string.save), color = MaterialTheme.colorScheme.primary)

@@ -9,10 +9,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.MusicNote
@@ -48,7 +51,6 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(viewModel: PracticeViewModel) {
     val allSessions by viewModel.allSessions.collectAsState()
@@ -64,6 +66,12 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
 
     var showInHours by remember { mutableStateOf(false) }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.stopAudioPlayback()
+        }
+    }
+
     val exerciseTypes = remember(allSessions) { allSessions.map { it.exerciseType }.distinct() }
 
     val filteredSessions = remember(allSessions, selectedExerciseFilter, filterMetronomeOnly) {
@@ -75,7 +83,9 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 16.dp, end = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
@@ -84,16 +94,34 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             ) {
-                AchievementsSection(
-                    achievements = achievements,
-                    unlockedCount = unlockedCount,
-                    totalCount = totalCount,
-                    modifier = Modifier.padding(16.dp)
-                )
+                Column(modifier = Modifier.padding(16.dp)) {
+                    AchievementsSection(
+                        achievements = achievements,
+                        unlockedCount = unlockedCount,
+                        totalCount = totalCount
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.scroll_to_see_more),
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -105,7 +133,7 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
             Text(
                 stringResource(R.string.filters),
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.7f),
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -125,7 +153,9 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
                 items(exerciseTypes) { type ->
                     FilterChip(
                         selected = selectedExerciseFilter == type,
-                        onClick = { selectedExerciseFilter = if (selectedExerciseFilter == type) null else type },
+                        onClick = {
+                            selectedExerciseFilter = if (selectedExerciseFilter == type) null else type
+                        },
                         label = { Text(type) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -142,8 +172,16 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(stringResource(R.string.daily_activity), fontSize = 16.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.7f))
-                    Text(stringResource(R.string.current_week_subtitle), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        stringResource(R.string.daily_activity),
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        stringResource(R.string.current_week_subtitle),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 UnitSelector(isHours = showInHours) { showInHours = it }
@@ -151,7 +189,8 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            val dailyDataMinutes = remember(filteredSessions) { calculateDailyStats(filteredSessions) }
+            val dailyDataMinutes =
+                remember(filteredSessions) { calculateDailyStats(filteredSessions) }
             val chartData = remember(dailyDataMinutes, showInHours) {
                 if (showInHours) {
                     dailyDataMinutes.map { it.first to (it.second / 60f) }
@@ -161,21 +200,35 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
             }
 
             Card(
-                modifier = Modifier.fillMaxWidth().height(250.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             ) {
                 BarChart(chartData, weeklyGoal, showInHours)
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text(stringResource(R.string.time_by_exercise), fontSize = 16.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.7f))
+            Text(
+                stringResource(R.string.time_by_exercise),
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onBackground
+            )
             Spacer(modifier = Modifier.height(8.dp))
 
             ExerciseBreakdown(filteredSessions)
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text(stringResource(R.string.history_title), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, fontSize = 18.sp)
+            Text(
+                stringResource(R.string.history_title),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 18.sp
+            )
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -185,13 +238,12 @@ fun StatisticsScreen(viewModel: PracticeViewModel) {
         }
     }
 }
-
 @Composable
 fun UnitSelector(isHours: Boolean, onUnitChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+            .background(MaterialTheme.colorScheme.surface)
             .padding(2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
@@ -248,7 +300,8 @@ fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel
             .fillMaxWidth()
             .animateContentSize()
             .clickable { expanded = !expanded },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha=0.9f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -309,7 +362,7 @@ fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel
                 }
 
                 if (session.audioPath != null) {
-                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))) {
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.MusicNote, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
@@ -367,17 +420,20 @@ fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel
                         }
                     }
                 } else {
-                    Text(stringResource(R.string.no_audio_available), fontSize = 12.sp, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f))
+                    Text(stringResource(R.string.no_audio_available), fontSize = 12.sp, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
 }
 
-
 @Composable
 fun WeeklyGoalCard(progress: Float, goalHours: Int) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.weekly_goal_label), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
@@ -497,7 +553,10 @@ fun ExerciseBreakdown(sessions: List<PracticeSession>) {
     }
     val totalMinutes = stats.sumOf { it.second.toDouble() }.toFloat().coerceAtLeast(1f)
 
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f))) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             if (stats.isEmpty()) { Text(stringResource(R.string.no_data_filters), color = MaterialTheme.colorScheme.onSurfaceVariant) } else {
                 stats.forEach { (type, minutes) ->
@@ -635,8 +694,71 @@ fun FullRhythmAnalysisView(
 
         if (showDetails) {
             Spacer(modifier = Modifier.height(8.dp))
-            HitDetailsTable(hits = analysisResult.detailedHits)
+            AnalysisSummaryTable(analysisResult)
         }
+    }
+}
+
+@Composable
+fun AnalysisSummaryTable(result: AnalysisResult) {
+    val totalHits = result.detailedHits.size
+    val onBeat = result.hitsOnBeat
+    val ghosts = result.detailedHits.count { it.isGhostNote }
+    val early = result.detailedHits.count { !it.isGhostNote && !it.isOnBeat && it.deviationMs < 0 }
+    val late = result.detailedHits.count { !it.isGhostNote && !it.isOnBeat && it.deviationMs > 0 }
+
+    val onBeatPct = if(totalHits > 0) (onBeat * 100 / totalHits) else 0
+    val ghostsPct = if(totalHits > 0) (ghosts * 100 / totalHits) else 0
+    val earlyPct = if(totalHits > 0) (early * 100 / totalHits) else 0
+    val latePct = if(totalHits > 0) (late * 100 / totalHits) else 0
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.3f))
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.table_status), fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.stats_hits), fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(0.5f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                Text("%", fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(0.5f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
+
+            StatSummaryRow(stringResource(R.string.legend_on_beat), onBeat, onBeatPct, Color(0xFF00C853))
+            StatSummaryRow("Early", early, earlyPct, Color(0xFFFFD600))
+            StatSummaryRow("Late", late, latePct, Color(0xFFFFD600))
+            StatSummaryRow(stringResource(R.string.stats_ghost), ghosts, ghostsPct, Color.Gray)
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
+            StatSummaryRow("TOTAL", totalHits, 100, MaterialTheme.colorScheme.onSurface, isBold = true)
+        }
+    }
+}
+
+@Composable
+fun StatSummaryRow(label: String, count: Int, percent: Int, color: Color, isBold: Boolean = false) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = color,
+            fontWeight = if(isBold) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "$count",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.weight(0.5f)
+        )
+        Text(
+            text = "$percent%",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.weight(0.5f)
+        )
     }
 }
 
@@ -698,7 +820,7 @@ fun ScrollableRhythmTimeline(
                 .fillMaxWidth()
                 .height(100.dp)
                 .background(
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    MaterialTheme.colorScheme.surfaceVariant,
                     RoundedCornerShape(8.dp)
                 )
         ) {
@@ -735,7 +857,7 @@ fun ScrollableRhythmTimeline(
                                 android.graphics.Paint().apply {
                                     color = textColor
                                     textSize = 24f
-                                    alpha = 150
+                                    alpha = 255
                                 }
                             )
                         }
@@ -754,7 +876,7 @@ fun ScrollableRhythmTimeline(
                             android.graphics.Paint().apply {
                                 color = textColor
                                 textSize = 22f
-                                alpha = 180
+                                alpha = 255
                             }
                         )
 
@@ -789,7 +911,7 @@ fun ScrollableRhythmTimeline(
         Text(
             text = stringResource(R.string.scroll_to_see_more),
             fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
     }
@@ -800,11 +922,12 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
     val greenColor = Color(0xFF00C853)
     val redColor = Color(0xFFD50000)
     val yellowColor = Color(0xFFFFD600)
+    val ghostColor = Color.Gray
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -825,8 +948,9 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
             val displayHits = hits.take(20)
             displayHits.forEach { hit ->
                 val absDeviation = abs(hit.deviationMs)
+
                 val statusColor = when {
-                    hit.isGhostNote -> Color.Gray
+                    hit.isGhostNote -> ghostColor
                     hit.isOnBeat -> greenColor
                     absDeviation < 80 -> yellowColor
                     else -> redColor
@@ -850,13 +974,15 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
+
                     Text(
-                        text = if(hit.isGhostNote) "Ghost" else "${if (hit.deviationMs > 0) "+" else ""}${hit.deviationMs}ms",
+                        text = if(hit.isGhostNote) stringResource(R.string.stats_ghost) else "${if (hit.deviationMs > 0) "+" else ""}${hit.deviationMs}ms",
                         fontSize = 11.sp,
                         color = statusColor,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f)
                     )
+
                     Box(
                         modifier = Modifier
                             .weight(1f)

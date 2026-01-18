@@ -83,7 +83,7 @@ fun AchievementsSection(
                 text = stringResource(R.string.achievements_title),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             Text(
@@ -117,13 +117,13 @@ fun AchievementsSection(
         }
 
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(0.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             items(chunkedAchievements) { columnItems ->
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     columnItems.forEach { type ->
                         val achievement = achievements.find { it.id == type.id }
@@ -178,7 +178,7 @@ private fun AchievementBadgeCompact(
             containerColor = if (isUnlocked) {
                 MaterialTheme.colorScheme.surface
             } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.surfaceVariant
             }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if(isUnlocked) 2.dp else 0.dp),
@@ -198,7 +198,7 @@ private fun AchievementBadgeCompact(
                     contentDescription = null,
                     modifier = Modifier
                         .size(26.dp)
-                        .alpha(if (isUnlocked) 1f else 0.3f),
+                        .alpha(if (isUnlocked) 1f else 0.5f),
                     tint = color
                 )
 
@@ -208,7 +208,7 @@ private fun AchievementBadgeCompact(
                     text = stringResource(type.titleRes),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isUnlocked) 0.9f else 0.5f),
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     lineHeight = 10.sp,
                     maxLines = 3,
@@ -239,7 +239,7 @@ private fun AchievementBadgeCompact(
                         Icons.Default.Lock,
                         contentDescription = null,
                         modifier = Modifier.size(9.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.5f)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -254,7 +254,7 @@ private fun AchievementDetailDialog(
     onDismiss: () -> Unit
 ) {
     val isUnlocked = achievement?.unlockedAt != null
-    val color = if (isUnlocked) getColorForAchievement(type) else Color.Gray
+    val color = if (isUnlocked) getColorForAchievement(type) else MaterialTheme.colorScheme.onSurfaceVariant
     val scrollState = rememberScrollState()
 
     Dialog(onDismissRequest = onDismiss) {
@@ -363,8 +363,8 @@ private fun AchievementDetailDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Postęp", style = MaterialTheme.typography.labelSmall)
-                            Text("$progress%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            Text("Postęp", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+                            Text("$progress%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         LinearProgressIndicator(
@@ -390,13 +390,13 @@ private fun AchievementDetailDialog(
                         imageVector = Icons.Default.Info,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = stringResource(R.string.achievement_rules_hint),
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         lineHeight = 14.sp
                     )

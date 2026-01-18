@@ -1,5 +1,6 @@
 package com.example.gpt.ui.onboarding
 
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -13,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -22,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -30,9 +33,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.gpt.R
 import com.example.gpt.ui.practice.PracticeViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.sqrt
 
 data class OnboardingPage(
     val titleRes: Int,
@@ -53,37 +59,37 @@ fun OnboardingScreen(
             titleRes = R.string.onboarding_welcome_title,
             descriptionRes = R.string.onboarding_welcome_desc,
             icon = Icons.Default.MusicNote,
-            accentColor = Color(0xFFE53935)
+            accentColor = MaterialTheme.colorScheme.primary
         ),
         OnboardingPage(
             titleRes = R.string.onboarding_practice_title,
             descriptionRes = R.string.onboarding_practice_desc,
             icon = Icons.Default.PlayArrow,
-            accentColor = Color(0xFF4CAF50)
+            accentColor = MaterialTheme.colorScheme.tertiary
         ),
         OnboardingPage(
             titleRes = R.string.onboarding_metronome_title,
             descriptionRes = R.string.onboarding_metronome_desc,
             icon = Icons.Default.Timer,
-            accentColor = Color(0xFF2196F3)
+            accentColor = MaterialTheme.colorScheme.secondary
         ),
         OnboardingPage(
             titleRes = R.string.onboarding_tuner_title,
             descriptionRes = R.string.onboarding_tuner_desc,
             icon = Icons.Default.Tune,
-            accentColor = Color(0xFFFF9800)
+            accentColor = MaterialTheme.colorScheme.tertiary
         ),
         OnboardingPage(
             titleRes = R.string.onboarding_stats_title,
             descriptionRes = R.string.onboarding_stats_desc,
             icon = Icons.Default.Insights,
-            accentColor = Color(0xFF9C27B0)
+            accentColor = MaterialTheme.colorScheme.primary
         ),
         OnboardingPage(
             titleRes = R.string.audio_calibration,
             descriptionRes = R.string.onboarding_calib_desc,
             icon = Icons.Default.SettingsInputComponent,
-            accentColor = Color(0xFF00BCD4),
+            accentColor = MaterialTheme.colorScheme.secondary,
             isCalibrationPage = true
         )
     )
@@ -98,6 +104,7 @@ fun OnboardingScreen(
         } else {
             viewModel.stopMonitoring()
             viewModel.stopTestMetronome()
+            viewModel.stopAudioMonitoring()
             if (viewModel.isTapCalibrating.value) viewModel.cancelTapCalibration()
         }
     }
@@ -105,14 +112,7 @@ fun OnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF0D0D0D),
-                        Color(0xFF1A1A1A)
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -131,7 +131,7 @@ fun OnboardingScreen(
                     TextButton(onClick = onFinished) {
                         Text(
                             text = stringResource(R.string.skip),
-                            color = Color.White.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
@@ -192,14 +192,15 @@ fun OnboardingScreen(
                                 .fillMaxWidth()
                                 .height(56.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFE53935)
+                                containerColor = MaterialTheme.colorScheme.primary
                             ),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Text(
                                 text = stringResource(R.string.get_started),
                                 fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                     } else {
@@ -214,13 +215,13 @@ fun OnboardingScreen(
                                             pagerState.animateScrollToPage(pagerState.currentPage - 1)
                                         }
                                     },
-                                    containerColor = Color.White.copy(alpha = 0.1f),
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "Back",
-                                        tint = Color.White.copy(alpha = 0.7f)
+                                        tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
 
@@ -238,7 +239,7 @@ fun OnboardingScreen(
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowForward,
                                     contentDescription = "Next",
-                                    tint = Color.White
+                                    tint = MaterialTheme.colorScheme.onPrimary
                                 )
                             }
                         }
@@ -321,7 +322,7 @@ private fun OnboardingPageContent(
             text = stringResource(page.titleRes),
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
 
@@ -330,7 +331,7 @@ private fun OnboardingPageContent(
         Text(
             text = stringResource(page.descriptionRes),
             fontSize = 16.sp,
-            color = Color.White.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
             lineHeight = 24.sp
         )
@@ -351,8 +352,27 @@ private fun OnboardingCalibrationContent(
     val isTapCalibrating by viewModel.isTapCalibrating.collectAsState()
     val tapBeat by viewModel.tapCalibrationBeat.collectAsState()
     val tapProgress by viewModel.tapCalibrationProgress.collectAsState()
+    val isMonitoring by viewModel.isMonitoringEnabled.collectAsState()
+    val metronomeOffset by viewModel.metronomeOffset.collectAsState()
+    val isHapticEnabled by viewModel.isHapticEnabled.collectAsState()
 
-    val animatedAmplitude by animateFloatAsState(targetValue = amplitude, label = "amp")
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startMonitoring()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.startMonitoring()
+    }
+
+    val animatedAmplitude by animateFloatAsState(
+        targetValue = amplitude,
+        label = "amp",
+        animationSpec = tween(50, easing = LinearEasing)
+    )
 
     Column(
         modifier = Modifier
@@ -366,21 +386,21 @@ private fun OnboardingCalibrationContent(
             text = stringResource(page.titleRes),
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = stringResource(page.descriptionRes),
             fontSize = 14.sp,
-            color = Color.White.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A2A)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -389,7 +409,7 @@ private fun OnboardingCalibrationContent(
                 Text(
                     stringResource(R.string.input_check),
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -411,26 +431,87 @@ private fun OnboardingCalibrationContent(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
+                    Button(
+                        onClick = { viewModel.toggleAudioMonitoring() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if(isMonitoring) MaterialTheme.colorScheme.error else page.accentColor.copy(alpha=0.2f),
+                            contentColor = if(isMonitoring) Color.White else page.accentColor
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if(isMonitoring) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                            contentDescription = "Monitor",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if(isMonitoring) stringResource(R.string.monitoring_stop) else stringResource(R.string.monitoring_listen),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .background(Color.Black, RoundedCornerShape(4.dp))
+                        .padding(2.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     val progress = (animatedAmplitude / 100f).coerceIn(0f, 1f)
-                    LinearProgressIndicator(
-                        progress = { progress },
+                    val thresholdVisualPos = (sqrt(threshold) * 3f).coerceIn(0f, 1f)
+                    val isGateOpen = progress > thresholdVisualPos
+                    val thresholdBias = (thresholdVisualPos * 2f) - 1f
+
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = when {
-                            progress > (threshold * 2) -> Color(0xFF4CAF50)
-                            progress > 0.05f -> page.accentColor
-                            else -> Color.Gray
-                        },
-                        trackColor = Color.White.copy(alpha = 0.1f),
+                            .fillMaxWidth(progress)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                if (isGateOpen) Color(0xFF00C853)
+                                else Color(0xFFD50000)
+                            )
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(2.dp)
+                            .align(BiasAlignment(thresholdBias, 0f))
+                            .background(Color.White)
+                    )
+
+                    Text(
+                        text = if (isGateOpen) stringResource(R.string.gate_open) else stringResource(R.string.gate_closed),
+                        color = Color.Gray,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 6.dp)
+                    )
+                }
+
+                if (isMonitoring) {
+                    Text(
+                        text = stringResource(R.string.feedback_warning),
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                val sliderThreshold = (threshold / 0.2f).coerceIn(0f, 1f)
-                val sensitivityPercent = ((1f - sliderThreshold) * 100).toInt()
+                val sliderPosition = 1f - (sqrt(threshold) * 3f).coerceIn(0f, 1f)
+                val sensitivityPercent = if (sliderPosition > 0.96f) 100 else (sliderPosition * 100).toInt()
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -439,7 +520,7 @@ private fun OnboardingCalibrationContent(
                     Text(
                         stringResource(R.string.mic_sensitivity_label),
                         fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.9f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -450,63 +531,78 @@ private fun OnboardingCalibrationContent(
                 }
 
                 Slider(
-                    value = sliderThreshold,
+                    value = sliderPosition,
                     onValueChange = { sliderValue ->
-                        val newThreshold = (sliderValue * 0.2f).coerceAtLeast(0.001f)
+                        val invertedPos = 1f - sliderValue
+                        val linear = (invertedPos / 3f)
+                        val newThreshold = (linear * linear).coerceAtLeast(0.0001f)
                         viewModel.setInputThreshold(newThreshold)
                     },
                     valueRange = 0f..1f,
                     colors = SliderDefaults.colors(
                         thumbColor = page.accentColor,
                         activeTrackColor = page.accentColor,
-                        inactiveTrackColor = Color.White.copy(alpha=0.2f)
+                        inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.2f)
                     )
                 )
                 Text(
                     stringResource(R.string.mic_sensitivity_expl),
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 14.sp
                 )
 
-                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
 
                 Text(
                     stringResource(R.string.latency_label),
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (isTapCalibrating) {
-                    Text(
-                        text = tapProgress,
-                        color = page.accentColor,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = tapProgress,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        repeat(8) { index ->
-                            val isActive = tapBeat >= (index + 1)
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isActive) page.accentColor else Color.White.copy(alpha = 0.2f))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                repeat(5) { index ->
+                                    val isActive = tapBeat >= (index + 1)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isActive) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.3f))
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = stringResource(R.string.calibration_hold_near),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        stringResource(R.string.calibration_hold_near),
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.5f),
-                        textAlign = TextAlign.Center
-                    )
                 } else {
                     Button(
                         onClick = { viewModel.runLatencyAutoCalibration() },
@@ -523,7 +619,7 @@ private fun OnboardingCalibrationContent(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = latencyResult!!,
-                        color = Color(0xFF4CAF50),
+                        color = MaterialTheme.colorScheme.tertiary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -534,7 +630,7 @@ private fun OnboardingCalibrationContent(
                 Text(
                     stringResource(R.string.manual_calib_title) + " (${latencyOffset}ms)",
                     fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold
                 )
 
@@ -543,15 +639,90 @@ private fun OnboardingCalibrationContent(
                     onValueChange = { viewModel.setLatencyOffset(it.toInt()) },
                     valueRange = 0f..300f,
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.Gray,
-                        activeTrackColor = Color.Gray,
-                        inactiveTrackColor = Color.White.copy(alpha=0.2f)
+                        thumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        activeTrackColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.2f)
                     )
                 )
                 Text(
                     stringResource(R.string.latency_expl),
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 14.sp
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 16.dp))
+
+                Text(
+                    stringResource(R.string.metronome_sync_title),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 14.sp
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.haptic_feedback),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = isHapticEnabled,
+                        onCheckedChange = { enabled ->
+                            viewModel.setHapticEnabled(enabled)
+                            if (enabled) {
+                                viewModel.triggerTestVibration()
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = page.accentColor,
+                            checkedTrackColor = page.accentColor.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier.scale(0.8f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(R.string.manual_offset),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "${metronomeOffset}ms",
+                        fontSize = 12.sp,
+                        color = page.accentColor
+                    )
+                }
+
+                Slider(
+                    value = metronomeOffset.toFloat(),
+                    onValueChange = {
+                        viewModel.setMetronomeOffset(it.toInt())
+                        viewModel.startSyncTest()
+                    },
+                    onValueChangeFinished = {
+                        viewModel.stopSyncTest()
+                    },
+                    valueRange = 0f..400f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = page.accentColor,
+                        activeTrackColor = page.accentColor,
+                        inactiveTrackColor = Color.White.copy(alpha=0.2f)
+                    )
+                )
+
+                Text(
+                    stringResource(R.string.metronome_sync_expl),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 14.sp
                 )
             }

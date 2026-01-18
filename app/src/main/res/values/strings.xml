@@ -82,12 +82,12 @@
     <string name="play_click">Test Sound</string>
     <string name="low_noise">Quiet environment</string>
     <string name="high_sensitive">Noisy environment</string>
-    <string name="mic_sensitivity_fmt">Mic Sensitivity: %d%%</string>
+    <string name="mic_sensitivity_fmt">Sensitivity: %d%%</string>
     <string name="latency_label">Input Latency Compensation</string>
     <string name="latency_comp_fmt">Audio Latency (%dms)</string>
     <string name="latency_expl">Compensates for hardware delay. If Rhythm Analysis consistently says you are "Late", increase this value.</string>
     <string name="manual_calib_title">Manual Adjustment</string>
-    <string name="manual_offset">Fine-tune manually:</string>
+    <string name="manual_offset">Offset:</string>
     <string name="calibrating">Calibrating...</string>
     <string name="latency_preparing">Preparing...</string>
     <string name="latency_listen">Listen &amp; Wait...</string>
@@ -103,8 +103,9 @@
     <string name="rhythm_strictness_fmt">Margin of error: %d%%</string>
     <string name="rhythm_strictness_desc">Determines how precise you must be to get a "Perfect" hit. Lower = Harder.</string>
     <string name="rhythm_strictness_expl">Determines how precise you must be to get a "Perfect" hit. Lower margin = Harder.</string>
-    <string name="strictness_normal">Forgiving</string>
-    <string name="strictness_strict">Precise</string>
+    <string name="strictness_easy">Easy (Wide)</string>
+    <string name="strictness_normal">Normal</string>
+    <string name="strictness_strict">Expert (Narrow)</string>
     <string name="export_data">Export Data</string>
     <string name="export_desc">Save or Share CSV</string>
     <string name="import_data">Import Data</string>
@@ -237,7 +238,7 @@
     <string name="achievement_night_owl_desc">Practice after 10 PM on 5 different days (min. 5 mins)</string>
     <string name="achievement_perfect_pitch_title">Perfect Pitch</string>
     <string name="achievement_perfect_pitch_desc">Tune your guitar perfectly 100 times</string>
-    <string name="auto_calibrate_btn">True Auto-Calibration</string>
+    <string name="auto_calibrate_btn">Auto-Calibration</string>
     <string name="tap_calibration_ready">Get ready...</string>
     <string name="tap_calibration_listen">Listening for tones (don\'t touch)...</string>
     <string name="tap_calibration_done">Calibration complete!</string>
@@ -245,6 +246,12 @@
     <string name="tap_calibration_not_enough">Measurement error. Try again.</string>
     <string name="calibration_step_fmt">Measurement %1$d of %2$d...</string>
     <string name="calibration_hold_near">Ensure phone volume is audible</string>
-    <string name="mic_sensitivity_label">Mic Sensitivity (Threshold)</string>
-    <string name="mic_sensitivity_expl">100%% = High sensitivity (detects quiet sounds). Set so the bar reacts to your playing but ignores silence.</string>
+    <string name="mic_sensitivity_label">Mic Sensitivity</string>
+    <string name="mic_sensitivity_expl">100% = High sensitivity (detects quiet sounds). Set so the bar reacts to your playing but ignores silence.</string>
+    <string name="stats_ghost">Ghost</string>
+    <string name="monitoring_listen">Listen</string>
+    <string name="monitoring_stop">Stop</string>
+    <string name="gate_open">GATE: OPEN</string>
+    <string name="gate_closed">GATE: CLOSED</string>
+    <string name="feedback_warning">Use headphones to avoid feedback!</string>
 </resources>

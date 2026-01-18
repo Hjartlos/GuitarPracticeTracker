@@ -141,7 +141,7 @@ object ToneGenerator {
         }
     }
 
-    fun playCalibrationTone(frequency: Float = 1000f, durationMs: Int = 80) {
+    fun playCalibrationTone(frequency: Float = 1000f, durationMs: Int = 100) {
         CoroutineScope(Dispatchers.Default).launch {
             val numSamples = SAMPLE_RATE * durationMs / 1000
             val samples = ShortArray(numSamples)
@@ -182,6 +182,10 @@ object ToneGenerator {
                 e.printStackTrace()
             }
         }
+    }
+
+    fun playMetronomeClick() {
+        playTone(1200f, 40)
     }
 
     fun playTone(frequency: Float, durationMs: Int = 2000) {

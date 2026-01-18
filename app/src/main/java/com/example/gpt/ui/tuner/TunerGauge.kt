@@ -61,9 +61,9 @@ fun TunerGauge(
     val animatedCents by animateFloatAsState(targetValue = cents.toFloat(), label = "CentsAnimation")
 
     val targetNeedleColor = when {
-        isInTune -> Color(0xFF00C853)
+        isInTune -> MaterialTheme.colorScheme.tertiary
         kotlin.math.abs(cents) < 15 -> Color(0xFFFFD600)
-        else -> Color(0xFFD50000)
+        else -> MaterialTheme.colorScheme.error
     }
 
     val animatedNeedleColor by animateColorAsState(targetValue = targetNeedleColor, label = "NeedleColorAnimation")
@@ -133,7 +133,7 @@ fun TunerGauge(
                         textY + 10f,
                         android.graphics.Paint().apply {
                             color = tickColor.toArgb()
-                            alpha = 180
+                            alpha = 255
                             textSize = 28f
                             textAlign = android.graphics.Paint.Align.CENTER
                             isFakeBoldText = true
@@ -178,7 +178,7 @@ fun TunerGauge(
                 Text(
                     text = String.format(java.util.Locale.US, "%.1f Hz", tunerResult.frequency),
                     fontSize = 14.sp,
-                    color = if (isInTune) animatedNeedleColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    color = if (isInTune) animatedNeedleColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -208,7 +208,7 @@ fun TunerGauge(
             } else {
                 Text(
                     text = stringResource(R.string.tuner_listening),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.3f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
             }

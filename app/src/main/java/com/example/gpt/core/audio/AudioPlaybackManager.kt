@@ -2,7 +2,7 @@ package com.example.gpt.core.audio
 
 import android.content.Context
 import android.media.MediaPlayer
-import android.net.Uri
+import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -58,12 +58,23 @@ class AudioPlaybackManager(
         if (path == null) return
 
         val file = File(path)
-        if (!file.exists()) return
+        if (!file.exists() || !file.canRead()) {
+            android.util.Log.e("AudioPlaybackManager", "File issue: $path")
+            return
+        }
 
         try {
             mediaPlayer = MediaPlayer().apply {
-                setDataSource(context, Uri.fromFile(file))
+                setDataSource(file.absolutePath)
                 prepare()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    try {
+                        playbackParams = playbackParams.apply { speed = _speed.value }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
                 start()
                 setOnCompletionListener {
                     _isPlaying.value = false
@@ -83,21 +94,26 @@ class AudioPlaybackManager(
 
     fun seek(progressPercent: Float) {
         mediaPlayer?.let { player ->
-            player.seekTo((player.duration * progressPercent).toInt())
-            _progress.value = progressPercent
+            if (player.duration > 0) {
+                player.seekTo((player.duration * progressPercent).toInt())
+                _progress.value = progressPercent
+            }
         }
     }
 
     fun setSpeed(newSpeed: Float) {
         _speed.value = newSpeed
-        mediaPlayer?.let { player ->
-            try {
-                val wasPlaying = player.isPlaying
-                player.playbackParams = player.playbackParams.apply { speed = newSpeed }
-                if (wasPlaying && !player.isPlaying) {
-                    player.start()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            mediaPlayer?.let { player ->
+                try {
+                    val wasPlaying = player.isPlaying
+                    player.playbackParams = player.playbackParams.apply { speed = newSpeed }
+                    if (wasPlaying && !player.isPlaying) {
+                        player.start()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
             }
         }
     }
@@ -107,7 +123,9 @@ class AudioPlaybackManager(
         progressJob = scope.launch {
             while (mediaPlayer?.isPlaying == true) {
                 mediaPlayer?.let { player ->
-                    _progress.value = player.currentPosition.toFloat() / player.duration.toFloat()
+                    if (player.duration > 0) {
+                        _progress.value = player.currentPosition.toFloat() / player.duration.toFloat()
+                    }
                 }
                 delay(50)
             }
@@ -120,11 +138,15 @@ class AudioPlaybackManager(
 
     fun release() {
         progressJob?.cancel()
-        mediaPlayer?.release()
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         mediaPlayer = null
         _activeSessionId.value = null
         _isPlaying.value = false
         _progress.value = 0f
     }
 }
-

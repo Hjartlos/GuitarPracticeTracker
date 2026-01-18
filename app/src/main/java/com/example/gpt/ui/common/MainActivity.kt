@@ -58,6 +58,8 @@ class MainActivity : AppCompatActivity() {
 
         val splashShown = savedInstanceState?.getBoolean(PREF_SPLASH_SHOWN_SESSION, false) ?: false
 
+        lifecycle.addObserver(viewModel)
+
         setContent {
             val isDarkMode by viewModel.isDarkMode.collectAsState()
             GPTTheme(darkTheme = isDarkMode) {
@@ -70,10 +72,6 @@ class MainActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
         outState.putBoolean(PREF_SPLASH_SHOWN_SESSION, true)
     }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-    }
 }
 
 enum class AppScreen {
@@ -82,10 +80,18 @@ enum class AppScreen {
     MAIN
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun AppContent(viewModel: PracticeViewModel, splashAlreadyShown: Boolean = false) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+
+    val micPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
+    LaunchedEffect(Unit) {
+        if (!micPermission.status.isGranted) {
+            micPermission.launchPermissionRequest()
+        }
+    }
 
     val onboardingCompleted = remember {
         prefs.getBoolean(PREF_ONBOARDING_COMPLETED, false)
@@ -128,47 +134,71 @@ fun AppContent(viewModel: PracticeViewModel, splashAlreadyShown: Boolean = false
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: PracticeViewModel) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-
-    val micPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
     val isDarkMode by viewModel.isDarkMode.collectAsState()
-
     val newlyUnlockedAchievement by viewModel.newlyUnlockedAchievement.collectAsState()
-
-    LaunchedEffect(Unit) {
-        if (!micPermission.status.isGranted) micPermission.launchPermissionRequest()
-    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
                         icon = { Icon(Icons.Default.PlayArrow, contentDescription = null) },
-                        label = { Text(stringResource(R.string.nav_practice)) }
+                        label = { Text(stringResource(R.string.nav_practice)) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
                         icon = { Icon(Icons.Default.MusicNote, contentDescription = null) },
-                        label = { Text(stringResource(R.string.nav_tuner)) }
+                        label = { Text(stringResource(R.string.nav_tuner)) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
                         icon = { Icon(Icons.Default.Insights, contentDescription = null) },
-                        label = { Text(stringResource(R.string.nav_stats)) }
+                        label = { Text(stringResource(R.string.nav_stats)) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                     NavigationBarItem(
                         selected = selectedTab == 3,
                         onClick = { selectedTab = 3 },
                         icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        label = { Text(stringResource(R.string.nav_settings)) }
+                        label = { Text(stringResource(R.string.nav_settings)) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
@@ -219,12 +249,11 @@ fun GuitarPatternBackground(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val patternColor = if (isDarkMode) Color.White else Color.Black
-    val gradientColors = if (isDarkMode) {
-        listOf(Color(0xFF0D0D0D), Color(0xFF1E1E1E))
-    } else {
-        listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surfaceVariant)
-    }
+    val patternColor = MaterialTheme.colorScheme.onBackground
+    val gradientColors = listOf(
+        MaterialTheme.colorScheme.background,
+        MaterialTheme.colorScheme.surface
+    )
 
     val density = LocalDensity.current
     val pickPath = remember(density) {
