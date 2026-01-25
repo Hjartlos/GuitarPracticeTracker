@@ -478,7 +478,9 @@ fun PracticeScreen(viewModel: PracticeViewModel) {
                 onValueChange = { viewModel.updateNotes(it) },
                 label = { Text(stringResource(R.string.session_notes_label)) },
                 modifier = Modifier.fillMaxWidth(),
-                maxLines = 3,
+                minLines = 3,
+                maxLines = Int.MAX_VALUE,
+                singleLine = false,
                 shape = RoundedCornerShape(12.dp)
             )
 

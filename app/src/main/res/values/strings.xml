@@ -93,7 +93,6 @@
     <string name="latency_listen">Listen &amp; Wait...</string>
     <string name="latency_measured">Measured: %dms</string>
     <string name="latency_failed">Failed. Volume too low?</string>
-    <string name="tap_calibrate_btn">Tap Calibration</string>
     <string name="tap_here">TAP HERE</string>
     <string name="metronome_sync_title">Metronome Sync (Visual/Haptic)</string>
     <string name="metronome_sync_desc">Offset for vibration and flash (%d ms)</string>
@@ -147,9 +146,10 @@
     <string name="no_audio_available">No Audio Available</string>
     <string name="stats_hits">Hits</string>
     <string name="stats_duration">Duration</string>
-    <string name="legend_on_beat">On beat</string>
-    <string name="legend_close">Close</string>
-    <string name="legend_off_beat">Off beat</string>
+    <string name="legend_perfect">On Beat</string>
+    <string name="legend_good">Close</string>
+    <string name="legend_miss">Miss</string>
+    <string name="legend_ghost">Ghost</string>
     <string name="show_details">Show details</string>
     <string name="scroll_to_see_more">← Scroll to see more →</string>
     <string name="table_time">Time</string>
@@ -248,10 +248,43 @@
     <string name="calibration_hold_near">Ensure phone volume is audible</string>
     <string name="mic_sensitivity_label">Mic Sensitivity</string>
     <string name="mic_sensitivity_expl">100% = High sensitivity (detects quiet sounds). Set so the bar reacts to your playing but ignores silence.</string>
-    <string name="stats_ghost">Ghost</string>
+    <string name="stats_total">Total Notes</string>
     <string name="monitoring_listen">Listen</string>
     <string name="monitoring_stop">Stop</string>
     <string name="gate_open">GATE: OPEN</string>
     <string name="gate_closed">GATE: CLOSED</string>
     <string name="feedback_warning">Use headphones to avoid feedback!</string>
+    <string name="tap_along_instructions">Play along with the metronome for 4 bars</string>
+    <string name="tap_calibrate_btn">Input Calibration</string>
+    <string name="tap_calib_instructions">Play guitar in time with the metronome</string>
+    <string name="tap_calibration_success">Calibrated! New latency: %1$dms (offset: %2$dms)</string>
+    <string name="tap_calibration_insufficient">Not enough data. Try again.</string>
+    <string name="start_label">START!</string>
+    <string name="achievement_hint_tuner">Tune all strings to count progress.</string>
+    <string name="achievement_hint_speed">Requires 200+ BPM tempo and accuracy above 50%.</string>
+    <string name="achievement_hint_goal">Achievement unlocks after finishing a session that completes your weekly goal.</string>
+    <string name="achievement_hint_streak">Requires a total of 10 minutes playing each day (Free Play or Metronome).</string>
+    <string name="achievement_hint_default">Only sessions of required length with detected audio count.</string>
+    <string name="progress_label">Progress</string>
+    <string name="margin_label">Marg: %1$d%%</string>
+    <string name="delete_session_title">Delete Session</string>
+    <string name="delete_session_confirm">Are you sure you want to permanently delete this session and its recording?</string>
+    <string name="delete">Delete</string>
+    <string name="next">Next</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="play_pause">Play/Pause</string>
+    <string name="monitor_audio">Monitor Audio</string>
+    <string name="cd_edit_goal">Edit weekly goal</string>
+    <string name="cd_tune_standards">Tuning standards</string>
+    <string name="cd_calibrate_audio">Calibrate audio</string>
+    <string name="cd_share">Share</string>
+    <string name="cd_save">Save</string>
+    <string name="cd_import">Import</string>
+    <string name="cd_change_language">Change language</string>
+    <string name="cd_tutorial">Open tutorial</string>
+    <string name="cd_about">About app</string>
+    <string name="cd_monitor">Monitor audio</string>
+    <string name="share_csv_title">Share CSV</string>
+    <string name="accuracy_label">Acc: %1$d%%</string>
+
 </resources>

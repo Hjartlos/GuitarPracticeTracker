@@ -34,9 +34,13 @@ object ToneGenerator {
 
     fun stopCurrentTone() {
         try {
-            currentAudioTrack?.stop()
+            if (currentAudioTrack?.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                currentAudioTrack?.pause()
+                currentAudioTrack?.flush()
+            }
             currentAudioTrack?.release()
         } catch (e: Exception) {
+            e.printStackTrace()
         }
         currentAudioTrack = null
         _isPlaying.value = false
@@ -44,7 +48,7 @@ object ToneGenerator {
 
     fun playGuitarTone(
         frequency: Float,
-        durationMs: Int = 1200,
+        durationMs: Int = 1500,
         onPlaybackStarted: (() -> Unit)? = null,
         onPlaybackFinished: (() -> Unit)? = null
     ) {
@@ -57,13 +61,21 @@ object ToneGenerator {
             onPlaybackStarted?.invoke()
 
             try {
-                val numSamples = SAMPLE_RATE * durationMs / 1000
-                val samples = ShortArray(numSamples)
+                val paddingMs = 100
+                val totalDurationMs = durationMs + paddingMs
+
+                val numSamples = (SAMPLE_RATE * durationMs / 1000)
+                val paddingSamples = (SAMPLE_RATE * paddingMs / 1000)
+                val totalSamples = numSamples + paddingSamples
+
+                val samples = ShortArray(totalSamples)
 
                 val attackSamples = (SAMPLE_RATE * 0.005).toInt()
                 val decaySamples = (SAMPLE_RATE * 0.1).toInt()
                 val sustainLevel = 0.7
-                val releaseStart = numSamples - (SAMPLE_RATE * 0.3).toInt()
+
+                val fadeOutSamples = (SAMPLE_RATE * 0.05).toInt()
+                val fadeStart = numSamples - fadeOutSamples
 
                 for (i in 0 until numSamples) {
                     val t = i.toDouble() / SAMPLE_RATE
@@ -71,26 +83,29 @@ object ToneGenerator {
                     var signal = 0.0
                     for ((harmonic, amplitude) in GUITAR_HARMONICS) {
                         val harmonicFreq = frequency * harmonic
-                        val harmonicDecay = exp(-harmonic * 0.5 * t)
+                        val harmonicDecay = exp(-harmonic * 0.8 * t)
                         signal += amplitude * harmonicDecay * sin(2.0 * PI * harmonicFreq * t)
                     }
 
                     if (i < attackSamples * 3) {
-                        val pluckNoise = (Math.random() - 0.5) * 0.15 * exp(-10.0 * t)
+                        val pluckNoise = (Math.random() - 0.5) * 0.2 * exp(-20.0 * t)
                         signal += pluckNoise
                     }
 
-                    val envelope = when {
+                    var envelope = when {
                         i < attackSamples -> i.toDouble() / attackSamples
                         i < attackSamples + decaySamples -> {
                             val decayProgress = (i - attackSamples).toDouble() / decaySamples
                             1.0 - (1.0 - sustainLevel) * decayProgress
                         }
-                        i > releaseStart -> {
-                            val releaseProgress = (i - releaseStart).toDouble() / (numSamples - releaseStart)
-                            sustainLevel * (1.0 - releaseProgress).pow(2)
+                        else -> {
+                            sustainLevel * exp(-2.0 * (i - attackSamples - decaySamples).toDouble() / SAMPLE_RATE)
                         }
-                        else -> sustainLevel * exp(-1.5 * (i - attackSamples - decaySamples).toDouble() / numSamples)
+                    }
+
+                    if (i >= fadeStart) {
+                        val fadeProgress = (i - fadeStart).toDouble() / fadeOutSamples
+                        envelope *= (1.0 - fadeProgress).coerceIn(0.0, 1.0)
                     }
 
                     val normalizedSignal = signal / 2.5
@@ -113,23 +128,26 @@ object ToneGenerator {
                     .setAudioAttributes(audioAttributes)
                     .setAudioFormat(audioFormat)
                     .setTransferMode(AudioTrack.MODE_STATIC)
-                    .setBufferSizeInBytes(numSamples * 2)
+                    .setBufferSizeInBytes(totalSamples * 2)
                     .build()
 
                 currentAudioTrack = audioTrack
 
-                audioTrack.write(samples, 0, numSamples)
+                audioTrack.write(samples, 0, totalSamples)
                 audioTrack.play()
 
                 var elapsed = 0
                 val sleepChunk = 50
-                while (elapsed < durationMs && _isPlaying.value) {
+                while (elapsed < totalDurationMs && _isPlaying.value) {
                     Thread.sleep(sleepChunk.toLong())
                     elapsed += sleepChunk
                 }
 
-                audioTrack.stop()
-                audioTrack.release()
+                try {
+                    audioTrack.stop()
+                    audioTrack.release()
+                } catch (e: Exception) { }
+
                 currentAudioTrack = null
 
             } catch (e: Exception) {
@@ -143,14 +161,18 @@ object ToneGenerator {
 
     fun playCalibrationTone(frequency: Float = 1000f, durationMs: Int = 100) {
         CoroutineScope(Dispatchers.Default).launch {
+            val paddingMs = 50
             val numSamples = SAMPLE_RATE * durationMs / 1000
-            val samples = ShortArray(numSamples)
+            val paddingSamples = SAMPLE_RATE * paddingMs / 1000
+            val totalSamples = numSamples + paddingSamples
+
+            val samples = ShortArray(totalSamples)
 
             for (i in 0 until numSamples) {
                 val t = i.toDouble() / SAMPLE_RATE
                 val envelope = if (i < numSamples / 10) i.toDouble() / (numSamples / 10)
-                              else if (i > numSamples * 9 / 10) (numSamples - i).toDouble() / (numSamples / 10)
-                              else 1.0
+                else if (i > numSamples * 9 / 10) (numSamples - i).toDouble() / (numSamples / 10)
+                else 1.0
                 val signal = sin(2.0 * PI * frequency * t) * envelope
                 samples[i] = (signal * Short.MAX_VALUE * 0.9).toInt().toShort()
             }
@@ -170,13 +192,13 @@ object ToneGenerator {
                         .build()
                 )
                 .setTransferMode(AudioTrack.MODE_STATIC)
-                .setBufferSizeInBytes(numSamples * 2)
+                .setBufferSizeInBytes(totalSamples * 2)
                 .build()
 
             try {
-                audioTrack.write(samples, 0, numSamples)
+                audioTrack.write(samples, 0, totalSamples)
                 audioTrack.play()
-                Thread.sleep(durationMs.toLong() + 50)
+                Thread.sleep(durationMs.toLong() + paddingMs)
                 audioTrack.release()
             } catch (e: Exception) {
                 e.printStackTrace()

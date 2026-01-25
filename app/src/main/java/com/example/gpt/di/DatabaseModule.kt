@@ -24,7 +24,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "guitar_tracker_db"
         )
-            .fallbackToDestructiveMigration()
+            .addMigrations(AppDatabase.MIGRATION_2_3)
             .build()
     }
 

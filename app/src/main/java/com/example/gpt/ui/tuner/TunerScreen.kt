@@ -83,6 +83,7 @@ fun TunerScreen(viewModel: PracticeViewModel) {
     var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(stringCount, baseFrequency) {
+        viewModel.setTotalStringCount(stringCount)
         currentStrings.clear()
         tunedStrings.clear()
         currentStrings.addAll(TuningData.generateStandardTuning(stringCount, baseFrequency.toFloat()))
@@ -311,6 +312,15 @@ fun TunerScreen(viewModel: PracticeViewModel) {
                 },
                 onEdit = { editingString = guitarString }
             )
+
+            if (isPerfect) {
+                if (!tunedStrings.contains(guitarString.id)) {
+                    tunedStrings.add(guitarString.id)
+                }
+                LaunchedEffect(Unit) {
+                    viewModel.onStringTuned(guitarString.id)
+                }
+            }
         }
     }
 

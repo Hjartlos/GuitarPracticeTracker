@@ -14,10 +14,10 @@ data class GuitarString(
 object TuningData {
     val notes = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
-    const val MIN_FREQUENCY = 40f
-    const val MAX_FREQUENCY = 700f
+    const val MIN_FREQUENCY = 25f
+    const val MAX_FREQUENCY = 1000f
 
-    val validOctaves = listOf(1, 2, 3, 4, 5)
+    val validOctaves = listOf(0, 1, 2, 3, 4, 5, 6)
 
     fun getValidNotesForOctave(octave: Int, baseFreq: Float = 440f): List<String> {
         return notes.filter { note ->

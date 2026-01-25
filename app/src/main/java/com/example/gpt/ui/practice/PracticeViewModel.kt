@@ -27,6 +27,7 @@ import com.example.gpt.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -62,6 +63,7 @@ class PracticeViewModel @Inject constructor(
     val isPlayerPlaying = playbackManager.isPlaying
     val playbackProgress = playbackManager.progress
     val playbackSpeed = playbackManager.speed
+
     private val _isHapticEnabled = MutableStateFlow(true)
     val isHapticEnabled = _isHapticEnabled.asStateFlow()
     val allAchievements = achievementRepository.allAchievements
@@ -169,6 +171,7 @@ class PracticeViewModel @Inject constructor(
     private val _isTapCalibrating = MutableStateFlow(false)
     val isTapCalibrating = _isTapCalibrating.asStateFlow()
 
+    private var tapCalibrationMetronome: Metronome? = null
     private val _tapCalibrationBeat = MutableStateFlow(0)
     val tapCalibrationBeat = _tapCalibrationBeat.asStateFlow()
 
@@ -290,7 +293,7 @@ class PracticeViewModel @Inject constructor(
                             if (effectiveBpmValue > 220) {
                                 if (isAccent) hapticManager.accentBeat()
                             } else {
-                                if (isAccent) hapticManager.accentBeat() else hapticManager.mediumTap()
+                                if (isAccent) hapticManager.accentBeat()
                             }
                         }
                     }
@@ -386,104 +389,150 @@ class PracticeViewModel @Inject constructor(
         metronome.stop()
     }
 
-    fun runLatencyAutoCalibration() {
-        startAcousticCalibration()
-    }
-
-    private fun startAcousticCalibration() {
+    fun startTapCalibration() {
         if (_isTapCalibrating.value) return
 
         val context = getApplication<Application>()
         _isTapCalibrating.value = true
-        _isLatencyTesting.value = true
+        _latencyTestResult.value = null
         _tapCalibrationBeat.value = 0
-        _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_ready)
+        tapTimestamps.clear()
+        clickTimestamps.clear()
 
         startMonitoring()
 
-        calibrationJob = viewModelScope.launch(Dispatchers.Default) {
-            delay(1000)
+        calibrationJob = viewModelScope.launch {
+            withContext(Dispatchers.Main) {
+                tapCalibrationMetronome = Metronome().apply {
+                    setBpm(100)
+                    setTimeSignature(4)
 
-            val detectedLatencies = mutableListOf<Long>()
-            val iterations = 5
+                    var beatCount = 0
+                    onBeatTick = { beatIndex, isAccent ->
+                        beatCount++
 
-            val triggerThreshold = 10f
+                        viewModelScope.launch(Dispatchers.Main) {
+                            when (beatCount) {
+                                1 -> _tapCalibrationProgress.value = "3"
+                                2 -> _tapCalibrationProgress.value = "2"
+                                3 -> _tapCalibrationProgress.value = "1"
+                                4 -> _tapCalibrationProgress.value = context.getString(R.string.start_label)
+                                5 -> _tapCalibrationProgress.value = context.getString(R.string.tap_along_instructions)
+                            }
 
-            for (i in 1..iterations) {
-                withContext(Dispatchers.Main) {
-                    _tapCalibrationProgress.value = context.getString(R.string.calibration_step_fmt, i, iterations)
-                    _tapCalibrationBeat.value = i
-                }
+                            if (beatCount > 4) {
+                                val now = System.currentTimeMillis()
+                                clickTimestamps.add(now)
+                                _tapCalibrationBeat.value = beatCount - 4
+                            }
 
-                delay(500)
+                            if (_isHapticEnabled.value) {
+                                delay(_metronomeOffset.value.toLong())
+                                hapticManager.mediumTap()
+                            }
 
-                val startTime = System.nanoTime()
-                ToneGenerator.playCalibrationTone(1000f, 100)
-
-                var beepDetected = false
-                val timeoutMs = 800L
-                val loopStart = System.currentTimeMillis()
-
-                while (System.currentTimeMillis() - loopStart < timeoutMs) {
-                    if (amplitude.value > triggerThreshold) {
-                        val endTime = System.nanoTime()
-                        val latencyNs = endTime - startTime
-                        val latencyMs = latencyNs / 1_000_000
-
-                        if (latencyMs > 10) {
-                            detectedLatencies.add(latencyMs)
-                            beepDetected = true
-                            break
+                            if (beatCount >= 20) {
+                                stopTapCalibration()
+                            }
                         }
                     }
-                    delay(5)
+                    start()
                 }
-
-                if (!beepDetected) {
-                    android.util.Log.w("Calibration", "Beep not detected in iteration $i")
-                }
-
-                delay(400)
             }
-
-            withContext(Dispatchers.Main) {
-                if (detectedLatencies.isNotEmpty()) {
-                    val sorted = detectedLatencies.sorted()
-                    val validData = if (sorted.size >= 3) {
-                        sorted.subList(1, sorted.size - 1)
-                    } else sorted
-
-                    val avgLatency = validData.average().toInt()
-                    val finalLatency = (avgLatency - 20).coerceIn(0, 300)
-
-                    setLatencyOffset(finalLatency)
-
-                    _latencyTestResult.value = context.getString(R.string.latency_measured, finalLatency)
-                    _tapCalibrationProgress.value = context.getString(R.string.tap_calibration_done)
-                } else {
-                    _latencyTestResult.value = context.getString(R.string.tap_calibration_failed)
-                    _tapCalibrationProgress.value = context.getString(R.string.latency_failed)
-                }
-
-                finishTapCalibration()
-            }
+            detectTapsLoop()
         }
     }
 
-    private fun finishTapCalibration() {
+    private suspend fun detectTapsLoop() {
+        var lastAmplitude = 0f
+        val tapThreshold = (_inputThreshold.value * 1.5f).coerceAtLeast(5f)
+        val minTimeBetweenTaps = 300L
+        var lastTapTime = 0L
+
+        while (_isTapCalibrating.value) {
+            val currentAmp = amplitude.value
+
+            if (currentAmp > tapThreshold && lastAmplitude < tapThreshold) {
+                val now = System.currentTimeMillis()
+                if (now - lastTapTime > minTimeBetweenTaps) {
+                    tapTimestamps.add(now)
+                    lastTapTime = now
+                }
+            }
+            lastAmplitude = currentAmp
+            delay(5)
+        }
+    }
+
+    private fun stopTapCalibration() {
+        tapCalibrationMetronome?.stop()
+        tapCalibrationMetronome = null
+
         viewModelScope.launch {
-            delay(2000)
-            _isTapCalibrating.value = false
-            _isLatencyTesting.value = false
-            _latencyTestResult.value = null
-            _tapCalibrationProgress.value = ""
+            delay(200)
+            calculateCalibrationResult()
+            calibrationJob?.cancel()
+        }
+    }
+
+    private fun calculateCalibrationResult() {
+        val context = getApplication<Application>()
+
+        if (tapTimestamps.size >= 5 && clickTimestamps.size >= 8) {
+            val latencySamples = mutableListOf<Long>()
+
+            val validTaps = if (tapTimestamps.size > 4) tapTimestamps.drop(2) else tapTimestamps
+
+            for (tapTime in validTaps) {
+                val nearestClick = clickTimestamps.minByOrNull { kotlin.math.abs(it - tapTime) }
+
+                if (nearestClick != null) {
+                    val diff = tapTime - nearestClick
+
+                    if (kotlin.math.abs(diff) < 400) {
+                        latencySamples.add(diff)
+                    }
+                }
+            }
+
+            if (latencySamples.isNotEmpty()) {
+                val sorted = latencySamples.sorted()
+                val validSamples = if (sorted.size >= 3) sorted.subList(1, sorted.size - 1) else sorted
+
+                val avgRawLatency = validSamples.average().toInt()
+
+                val finalLatency = avgRawLatency.coerceIn(0, 400)
+
+                setLatencyOffset(finalLatency)
+
+                _latencyTestResult.value = context.getString(R.string.tap_calibration_done)
+                _tapCalibrationProgress.value = ""
+            } else {
+                _latencyTestResult.value = context.getString(R.string.tap_calibration_failed)
+                _tapCalibrationProgress.value = context.getString(R.string.latency_failed)
+            }
+        } else {
+            _latencyTestResult.value = context.getString(R.string.tap_calibration_insufficient)
+            _tapCalibrationProgress.value = context.getString(R.string.latency_failed)
+        }
+
+        viewModelScope.launch {
+            delay(3000)
+            if (_isTapCalibrating.value) {
+                cancelTapCalibration()
+            }
         }
     }
 
     fun cancelTapCalibration() {
+        tapCalibrationMetronome?.stop()
+        tapCalibrationMetronome = null
         calibrationJob?.cancel()
         _isTapCalibrating.value = false
         _isLatencyTesting.value = false
+        _tapCalibrationBeat.value = 0
+        tapTimestamps.clear()
+        clickTimestamps.clear()
         _tapCalibrationProgress.value = ""
     }
 
@@ -791,7 +840,6 @@ class PracticeViewModel @Inject constructor(
             }
 
             val dbBpm = if (wasMetronomeOn) currentBpm else 0
-
             val savedConsistency = if (shouldAnalyze) result.consistency else 0
 
             sessionDao.insertSession(
@@ -804,11 +852,12 @@ class PracticeViewModel @Inject constructor(
                     avgBpm = dbBpm,
                     consistencyScore = savedConsistency,
                     timeSignature = if (wasMetronomeOn) currentTs else "-",
-                    audioPath = finalFile.absolutePath
+                    audioPath = finalFile.absolutePath,
+                    rhythmMargin = _rhythmMargin.value
                 )
             )
 
-            val newlyUnlocked = achievementRepository.checkAchievementsAfterSession(
+            val unlockedStandard = achievementRepository.checkAchievementsAfterSession(
                 sessionDurationMinutes = duration.toLong() / 60,
                 bpm = _metronomeBpm.value,
                 exerciseType = _exerciseType.value,
@@ -816,9 +865,18 @@ class PracticeViewModel @Inject constructor(
                 consistencyScore = savedConsistency
             )
 
+            val weekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000
+            val recentSessions = sessionDao.getAllSessions().first().filter { it.timestamp >= weekAgo }
+            val totalHours = recentSessions.sumOf { it.durationSeconds } / 3600f
+            val isGoalMet = totalHours >= _weeklyGoalHours.value
+
+            val unlockedGoals = achievementRepository.checkGoalAchievements(isGoalMet)
+
+            val allNew = unlockedStandard + unlockedGoals
+
             withContext(Dispatchers.Main) {
-                if (newlyUnlocked.isNotEmpty()) {
-                    _newlyUnlockedAchievement.value = newlyUnlocked.first()
+                if (allNew.isNotEmpty()) {
+                    _newlyUnlockedAchievement.value = allNew.first()
                     hapticManager.successPattern()
                 }
 
@@ -827,6 +885,35 @@ class PracticeViewModel @Inject constructor(
                 currentRecordingFile = null
                 _notes.value = ""
                 _elapsedSeconds.value = 0
+            }
+        }
+    }
+
+    private val tunedStringIds = mutableSetOf<Int>()
+    private var totalStringsInTuning = 6
+
+    fun setTotalStringCount(count: Int) {
+        if (totalStringsInTuning != count) {
+            totalStringsInTuning = count
+            tunedStringIds.clear()
+        }
+    }
+
+    fun onStringTuned(stringId: Int) {
+        if (!tunedStringIds.contains(stringId)) {
+            tunedStringIds.add(stringId)
+
+            if (tunedStringIds.size >= totalStringsInTuning) {
+                viewModelScope.launch {
+                    val currentProgress = achievementRepository.getAchievementProgress(AchievementType.PERFECT_PITCH)
+                    val newlyUnlocked = achievementRepository.checkTunerAchievements(currentProgress + 1)
+
+                    if (newlyUnlocked.isNotEmpty()) {
+                        _newlyUnlockedAchievement.value = newlyUnlocked.first()
+                        hapticManager.successPattern()
+                    }
+                }
+                tunedStringIds.clear()
             }
         }
     }
@@ -885,6 +972,31 @@ class PracticeViewModel @Inject constructor(
             )
         }
         return csv.toString()
+    }
+
+    fun deleteSession(session: PracticeSession) {
+        viewModelScope.launch {
+            session.audioPath?.let {
+                try {
+                    val file = File(it)
+                    if (file.exists()) {
+                        file.delete()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            sessionDao.deleteSession(session)
+        }
+    }
+
+    fun updateSessionAccuracy(session: PracticeSession, newAccuracy: Int) {
+        if (session.consistencyScore != newAccuracy) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val updatedSession = session.copy(consistencyScore = newAccuracy)
+                sessionDao.updateSession(updatedSession)
+            }
+        }
     }
 
     fun importFromCSV(csvContent: String): Result<Int> {
@@ -953,7 +1065,8 @@ class PracticeViewModel @Inject constructor(
                                     avgBpm = bpm,
                                     consistencyScore = accuracy,
                                     timeSignature = timeSig,
-                                    audioPath = null
+                                    audioPath = null,
+                                    rhythmMargin = 0.30f
                                 )
                                 sessionDao.insertSession(session)
                                 importedCount++
@@ -991,6 +1104,8 @@ class PracticeViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        tapCalibrationMetronome?.stop()
+        tapCalibrationMetronome = null
         playbackManager.release()
         stopTestMetronome()
         metronome.stop()

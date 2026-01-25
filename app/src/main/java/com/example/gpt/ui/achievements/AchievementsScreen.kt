@@ -363,7 +363,11 @@ private fun AchievementDetailDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Postęp", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+                            Text(
+                                text = stringResource(R.string.progress_label),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                             Text("$progress%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -393,8 +397,19 @@ private fun AchievementDetailDialog(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(6.dp))
+
+                    val hintResId = when (type) {
+                        AchievementType.PERFECT_PITCH -> R.string.achievement_hint_tuner
+                        AchievementType.SPEED_DEMON -> R.string.achievement_hint_speed
+                        AchievementType.GOAL_GETTER,
+                        AchievementType.GOAL_CRUSHER -> R.string.achievement_hint_goal
+                        AchievementType.WEEK_STREAK,
+                        AchievementType.MONTH_STREAK -> R.string.achievement_hint_streak
+                        else -> R.string.achievement_hint_default
+                    }
+
                     Text(
-                        text = stringResource(R.string.achievement_rules_hint),
+                        text = stringResource(hintResId),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -488,7 +503,7 @@ fun AchievementUnlockedToast(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Dismiss",
+                        contentDescription = stringResource(R.string.dismiss),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

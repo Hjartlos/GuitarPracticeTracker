@@ -14,20 +14,20 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -48,6 +48,9 @@ import com.example.gpt.ui.practice.PracticeViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.floor
+
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -272,9 +275,9 @@ fun UnitOption(text: String, isSelected: Boolean, onClick: () -> Unit) {
 
 fun getAccuracyColor(score: Int): Color {
     return when (score) {
-        in 90..100 -> Color(0xFF00C853)
-        in 80..89 -> Color(0xFFFFD600)
-        in 1..79 -> Color(0xFFD50000)
+        in 96..100 -> Color(0xFF1B5E20)
+        in 76..95 -> Color(0xFF4CAF50)
+        in 51..75 -> Color(0xFFFFD600)
         else -> Color(0xFFD50000)
     }
 }
@@ -282,6 +285,7 @@ fun getAccuracyColor(score: Int): Color {
 @Composable
 fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel) {
     var expanded by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val dateFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
 
     val activeSessionId by viewModel.activePlayerSessionId.collectAsState()
@@ -295,6 +299,30 @@ fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel
     val hitData = analysisResults[session.id]
     val isAnalyzing = isAnalyzingMap[session.id] == true
 
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.delete_session_title)) },
+            text = { Text(stringResource(R.string.delete_session_confirm)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSession(session)
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurface)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -304,21 +332,77 @@ fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("${session.exerciseType} (${session.tuning})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     if (session.avgBpm > 0) {
-                        val accText = if (session.consistencyScore == 0) stringResource(R.string.no_notes_detected) else "Acc: ${session.consistencyScore}%"
-                        val textColor = if (session.consistencyScore == 0) MaterialTheme.colorScheme.error else getAccuracyColor(session.consistencyScore)
-                        Text("${session.avgBpm} BPM • $accText", color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val realScore = if (hitData != null) {
+                            calculateConsistencyScore(hitData.detailedHits)
+                        } else {
+                            session.consistencyScore
+                        }
+                        LaunchedEffect(realScore, hitData) {
+                            if (hitData != null && realScore != session.consistencyScore) {
+                                viewModel.updateSessionAccuracy(session, realScore)
+                            }
+                        }
+
+                        val accText = if (realScore == 0 && session.consistencyScore == 0)
+                            stringResource(R.string.no_notes_detected)
+                        else
+                            stringResource(R.string.accuracy_label, realScore)
+
+                        val textColor = if (realScore == 0) MaterialTheme.colorScheme.error else getAccuracyColor(realScore)
+                        val marginPercent = (session.rhythmMargin * 100).toInt()
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${session.avgBpm} BPM",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = " • ",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = accText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textColor
+                            )
+                            Text(
+                                text = " • " + stringResource(R.string.margin_label, marginPercent),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     } else {
                         Text(stringResource(R.string.free_play), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontStyle = FontStyle.Italic)
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("${session.durationSeconds / 60} min", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Text(dateFormat.format(Date(session.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("${session.durationSeconds / 60} min", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Text(dateFormat.format(Date(session.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -331,7 +415,8 @@ fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel
                     if (hitData != null) {
                         FullRhythmAnalysisView(
                             analysisResult = hitData,
-                            bpm = session.avgBpm
+                            bpm = session.avgBpm,
+                            margin = session.rhythmMargin
                         )
                     } else if (isAnalyzing) {
                         Box(modifier = Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) {
@@ -378,7 +463,7 @@ fun SessionItemExpandable(session: PracticeSession, viewModel: PracticeViewModel
                                 ) {
                                     Icon(
                                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = "Play/Pause",
+                                        contentDescription = stringResource(R.string.play_pause),
                                         tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(28.dp)
                                     )
@@ -614,13 +699,22 @@ fun calculateDailyStats(sessions: List<PracticeSession>): List<Pair<String, Floa
 @Composable
 fun FullRhythmAnalysisView(
     analysisResult: AnalysisResult,
-    bpm: Int
+    bpm: Int,
+    margin: Float
 ) {
     var showDetails by remember { mutableStateOf(false) }
 
     val greenColor = Color(0xFF00C853)
-    val redColor = Color(0xFFD50000)
     val yellowColor = Color(0xFFFFD600)
+    val redColor = Color(0xFFD50000)
+
+    val totalHits = analysisResult.detailedHits.size
+    val ghostHits = analysisResult.detailedHits.count { it.noteType == "Ghost" }
+    val meaningfulHits = (totalHits - ghostHits).coerceAtLeast(1)
+
+    val validHits = analysisResult.detailedHits.count {
+        it.noteType == "Perfect" || it.noteType == "Good"
+    }
 
     Column {
         Row(
@@ -638,7 +732,7 @@ fun FullRhythmAnalysisView(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatBadge(
                     label = stringResource(R.string.stats_hits),
-                    value = "${analysisResult.hitsOnBeat}/${analysisResult.detailedHits.size}",
+                    value = "$validHits/$meaningfulHits",
                     color = greenColor
                 )
                 StatBadge(
@@ -652,12 +746,12 @@ fun FullRhythmAnalysisView(
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            LegendItem(color = greenColor, label = stringResource(R.string.legend_on_beat))
-            LegendItem(color = yellowColor, label = stringResource(R.string.legend_close))
-            LegendItem(color = redColor, label = stringResource(R.string.legend_off_beat))
+            LegendItem(color = greenColor, label = stringResource(R.string.legend_perfect))
+            LegendItem(color = yellowColor, label = stringResource(R.string.legend_good))
+            LegendItem(color = redColor, label = stringResource(R.string.legend_miss))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -665,7 +759,8 @@ fun FullRhythmAnalysisView(
         ScrollableRhythmTimeline(
             hits = analysisResult.detailedHits,
             bpm = bpm,
-            totalDuration = analysisResult.sessionDurationSeconds
+            totalDuration = analysisResult.sessionDurationSeconds,
+            margin = margin
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -701,16 +796,26 @@ fun FullRhythmAnalysisView(
 
 @Composable
 fun AnalysisSummaryTable(result: AnalysisResult) {
-    val totalHits = result.detailedHits.size
-    val onBeat = result.hitsOnBeat
-    val ghosts = result.detailedHits.count { it.isGhostNote }
-    val early = result.detailedHits.count { !it.isGhostNote && !it.isOnBeat && it.deviationMs < 0 }
-    val late = result.detailedHits.count { !it.isGhostNote && !it.isOnBeat && it.deviationMs > 0 }
+    val totalSignals = result.detailedHits.size
 
-    val onBeatPct = if(totalHits > 0) (onBeat * 100 / totalHits) else 0
-    val ghostsPct = if(totalHits > 0) (ghosts * 100 / totalHits) else 0
-    val earlyPct = if(totalHits > 0) (early * 100 / totalHits) else 0
-    val latePct = if(totalHits > 0) (late * 100 / totalHits) else 0
+    val perfectHits = result.detailedHits.count { it.noteType == "Perfect" }
+    val goodHits = result.detailedHits.count { it.noteType == "Good" }
+    val missHits = result.detailedHits.count { it.noteType == "Miss" }
+    val ghostHits = result.detailedHits.count { it.noteType == "Ghost" }
+
+    val meaningfulHits = (perfectHits + goodHits + missHits).coerceAtLeast(1)
+
+    val perfectPct = (perfectHits.toDouble() / meaningfulHits * 100.0).roundToInt()
+    val goodPct = (goodHits.toDouble() / meaningfulHits * 100.0).roundToInt()
+
+    val missPct = 100 - perfectPct - goodPct
+
+    val colorPerfect = Color(0xFF00C853)
+    val colorGood = Color(0xFFFFD600)
+    val colorMiss = Color(0xFFD50000)
+    val colorGhost = Color(0xFF3D5AFE)
+
+    val ghostPct = if (totalSignals > 0) (ghostHits.toDouble() / totalSignals * 100.0).roundToInt() else 0
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -724,13 +829,17 @@ fun AnalysisSummaryTable(result: AnalysisResult) {
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
 
-            StatSummaryRow(stringResource(R.string.legend_on_beat), onBeat, onBeatPct, Color(0xFF00C853))
-            StatSummaryRow("Early", early, earlyPct, Color(0xFFFFD600))
-            StatSummaryRow("Late", late, latePct, Color(0xFFFFD600))
-            StatSummaryRow(stringResource(R.string.stats_ghost), ghosts, ghostsPct, Color.Gray)
+            StatSummaryRow(stringResource(R.string.legend_perfect), perfectHits, perfectPct, colorPerfect)
+            StatSummaryRow(stringResource(R.string.legend_good), goodHits, goodPct, colorGood)
+            StatSummaryRow(stringResource(R.string.legend_miss), missHits, missPct, colorMiss)
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
-            StatSummaryRow("TOTAL", totalHits, 100, MaterialTheme.colorScheme.onSurface, isBold = true)
+
+            StatSummaryRow(stringResource(R.string.legend_ghost), ghostHits, ghostPct, colorGhost)
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
+
+            StatSummaryRow(stringResource(R.string.stats_total), meaningfulHits, 100, MaterialTheme.colorScheme.onSurface, isBold = true)
         }
     }
 }
@@ -798,21 +907,58 @@ fun LegendItem(color: Color, label: String) {
 fun ScrollableRhythmTimeline(
     hits: List<RhythmHit>,
     bpm: Int,
-    totalDuration: Double
+    totalDuration: Double,
+    margin: Float
 ) {
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
 
-    val pixelsPerSecond = 60.dp
-    val totalWidth = with(density) { (totalDuration * pixelsPerSecond.toPx()).toInt() }
-
-    val greenColor = Color(0xFF00C853)
-    val redColor = Color(0xFFD50000)
-    val yellowColor = Color(0xFFFFD600)
-    val beatLineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val pixelsPerSecondDp = 80.dp
+    val pxPerSecond = with(density) { pixelsPerSecondDp.toPx() }
+    val visualPaddingPx = with(density) { 10.dp.toPx() }
 
     val beatInterval = 60.0 / bpm
+    val toleranceMs = 35.0 + (80.0 * margin)
+    val toleranceSeconds = toleranceMs / 1000.0
+    val toleranceWidthPx = (toleranceSeconds * pxPerSecond).toFloat()
+
+    val toleranceBeatPositions = buildSet<Double> {
+        val baseBeats = ceil(totalDuration / beatInterval).toInt()
+        for (i in 0..baseBeats) add(i.toDouble())
+
+        hits.forEach { hit ->
+            if (!hit.isGhostNote) {
+                add(hit.targetTimeSeconds / beatInterval)
+            }
+        }
+    }
+
+    val minBeatPos = toleranceBeatPositions.minOrNull() ?: 0.0
+    val maxBeatPos = toleranceBeatPositions.maxOrNull() ?: 0.0
+
+    val startTime =
+        (minBeatPos * beatInterval) - toleranceSeconds
+
+    val endTime =
+        max(
+            (maxBeatPos * beatInterval) + toleranceSeconds,
+            totalDuration
+        )
+
+    val contentWidthPx =
+        ((endTime - startTime) * pxPerSecond).toFloat()
+
+    val totalWidthPx =
+        visualPaddingPx + contentWidthPx + visualPaddingPx
+
+    val totalWidthDp = with(density) { totalWidthPx.toDp() }
+
+    val greenColor = Color(0xFF00C853)
+    val yellowColor = Color(0xFFFFD600)
+    val redColor = Color(0xFFD50000)
+    val beatLineColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+    val toleranceColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
 
     Column {
         Box(
@@ -831,27 +977,53 @@ fun ScrollableRhythmTimeline(
             ) {
                 Canvas(
                     modifier = Modifier
-                        .width(with(density) { totalWidth.toDp() }.coerceAtLeast(300.dp))
+                        .width(totalWidthDp.coerceAtLeast(300.dp))
                         .fillMaxHeight()
                         .padding(vertical = 8.dp)
                 ) {
                     val height = size.height
-                    val width = size.width
-                    val pxPerSecond = if (totalDuration > 0) width / totalDuration.toFloat() else 60f
-                    var beatTime = 0.0
-                    var beatNumber = 0
-                    while (beatTime <= totalDuration) {
-                        val x = (beatTime * pxPerSecond).toFloat()
+
+                    fun getX(time: Double): Float =
+                        (visualPaddingPx +
+                                ((time - startTime) * pxPerSecond)).toFloat()
+
+                    toleranceBeatPositions.forEach { beatPos ->
+                        val time = beatPos * beatInterval
+                        val x = getX(time)
+
+                        drawRect(
+                            color = toleranceColor,
+                            topLeft = Offset(x - toleranceWidthPx, 0f),
+                            size = Size(toleranceWidthPx * 2, height)
+                        )
+                    }
+
+                    val firstBeatIndex =
+                        floor(startTime / beatInterval).toInt()
+
+                    val lastBeatIndex =
+                        ceil(endTime / beatInterval).toInt()
+
+                    for (i in firstBeatIndex..lastBeatIndex) {
+                        val time = i * beatInterval
+                        val x = getX(time)
+                        val isMeasure = i % 4 == 0
+
                         drawLine(
-                            color = if (beatNumber % 4 == 0) beatLineColor.copy(alpha = 0.6f) else beatLineColor,
+                            color = if (isMeasure)
+                                beatLineColor.copy(alpha = 0.6f)
+                            else beatLineColor,
                             start = Offset(x, 0f),
                             end = Offset(x, height),
-                            strokeWidth = if (beatNumber % 4 == 0) 2f else 1f,
-                            pathEffect = if (beatNumber % 4 != 0) PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) else null
+                            strokeWidth = if (isMeasure) 2f else 1f,
+                            pathEffect = if (!isMeasure)
+                                PathEffect.dashPathEffect(floatArrayOf(4f, 4f))
+                            else null
                         )
-                        if (beatNumber % 4 == 0) {
+
+                        if (isMeasure && time >= 0) {
                             drawContext.canvas.nativeCanvas.drawText(
-                                "${beatNumber + 1}",
+                                "${i + 1}",
                                 x + 4f,
                                 height - 5f,
                                 android.graphics.Paint().apply {
@@ -861,47 +1033,55 @@ fun ScrollableRhythmTimeline(
                                 }
                             )
                         }
-
-                        beatTime += beatInterval
-                        beatNumber++
                     }
-                    var timeMarker = 0.0
-                    while (timeMarker <= totalDuration) {
-                        val x = (timeMarker * pxPerSecond).toFloat()
 
-                        drawContext.canvas.nativeCanvas.drawText(
-                            formatTimeShort(timeMarker),
-                            x + 2f,
-                            20f,
-                            android.graphics.Paint().apply {
-                                color = textColor
-                                textSize = 22f
-                                alpha = 255
-                            }
-                        )
+                    val firstMarker = floor(startTime / 5.0).toInt()
+                    val lastMarker = ceil(endTime / 5.0).toInt()
 
-                        timeMarker += 5.0
+                    for (i in firstMarker..lastMarker) {
+                        val timeMarker = i * 5.0
+                        if (timeMarker >= 0) {
+                            val x = getX(timeMarker)
+                            drawContext.canvas.nativeCanvas.drawText(
+                                formatTimeShort(timeMarker),
+                                x + 2f,
+                                20f,
+                                android.graphics.Paint().apply {
+                                    color = textColor
+                                    textSize = 22f
+                                    alpha = 255
+                                }
+                            )
+                        }
                     }
+
                     hits.forEach { hit ->
-                        val x = (hit.timeSeconds * pxPerSecond).toFloat()
+                        val x = getX(hit.timeSeconds)
                         val absDeviation = abs(hit.deviationMs)
 
-                        val hitColor = when {
-                            hit.isGhostNote -> Color.Gray
-                            hit.isOnBeat -> greenColor
-                            absDeviation < 80 -> yellowColor
-                            else -> redColor
+                        val hitColor = when (hit.noteType) {
+                            "Perfect" -> greenColor
+                            "Good" -> yellowColor
+                            "Miss" -> redColor
+                            else -> Color.Gray
                         }
 
-                        val normalizedDeviation = (absDeviation.coerceAtMost(100) / 100f)
-                        val barHeight = height * (0.3f + 0.4f * (1f - normalizedDeviation))
+                        val normalizedDeviation =
+                            (absDeviation.coerceAtMost(100) / 100f)
+
+                        val barHeight =
+                            height * (0.3f + 0.4f * (1f - normalizedDeviation))
+
                         val barWidth = 4f
 
                         drawRoundRect(
                             color = hitColor,
-                            topLeft = Offset(x - barWidth / 2, (height - barHeight) / 2),
+                            topLeft = Offset(
+                                x - barWidth / 2,
+                                (height - barHeight) / 2
+                            ),
                             size = Size(barWidth, barHeight),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f)
+                            cornerRadius = CornerRadius(2f, 2f)
                         )
                     }
                 }
@@ -916,6 +1096,7 @@ fun ScrollableRhythmTimeline(
         )
     }
 }
+
 
 @Composable
 fun HitDetailsTable(hits: List<RhythmHit>) {
@@ -949,11 +1130,12 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
             displayHits.forEach { hit ->
                 val absDeviation = abs(hit.deviationMs)
 
-                val statusColor = when {
-                    hit.isGhostNote -> ghostColor
-                    hit.isOnBeat -> greenColor
-                    absDeviation < 80 -> yellowColor
-                    else -> redColor
+                val statusColor = when (hit.noteType) {
+                    "Ghost" -> ghostColor
+                    "Miss" -> redColor
+                    "Perfect" -> greenColor
+                    "Good" -> yellowColor
+                    else -> ghostColor
                 }
 
                 Row(
@@ -976,7 +1158,7 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
                     )
 
                     Text(
-                        text = if(hit.isGhostNote) stringResource(R.string.stats_ghost) else "${if (hit.deviationMs > 0) "+" else ""}${hit.deviationMs}ms",
+                        text = if(hit.isGhostNote) stringResource(R.string.legend_ghost) else "${if (hit.deviationMs > 0) "+" else ""}${hit.deviationMs}ms",
                         fontSize = 11.sp,
                         color = statusColor,
                         fontWeight = FontWeight.Medium,
@@ -1008,6 +1190,19 @@ fun HitDetailsTable(hits: List<RhythmHit>) {
             }
         }
     }
+}
+
+fun calculateConsistencyScore(hits: List<RhythmHit>): Int {
+    val perfectHits = hits.count { it.noteType == "Perfect" }
+    val goodHits = hits.count { it.noteType == "Good" }
+    val missHits = hits.count { it.noteType == "Miss" }
+
+    val meaningfulHits = (perfectHits + goodHits + missHits).coerceAtLeast(1)
+
+    val perfectPct = (perfectHits.toDouble() / meaningfulHits * 100.0).roundToInt()
+    val goodPct = (goodHits.toDouble() / meaningfulHits * 100.0).roundToInt()
+
+    return perfectPct + goodPct
 }
 
 fun formatDuration(seconds: Double): String {

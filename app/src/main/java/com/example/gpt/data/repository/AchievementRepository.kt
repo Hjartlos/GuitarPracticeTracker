@@ -44,7 +44,6 @@ class AchievementRepository @Inject constructor(
         consistencyScore: Int
     ): List<AchievementType> {
         val newlyUnlocked = mutableListOf<AchievementType>()
-
         val allSessions = sessionDao.getAllSessions().first()
 
         val totalMinutes = allSessions.sumOf { it.durationSeconds } / 60
@@ -75,7 +74,7 @@ class AchievementRepository @Inject constructor(
         }
 
         val distinctTypes = allSessions
-            .filter { it.durationSeconds >= MIN_SESSION_TIME_FOR_STATS && it.consistencyScore > 0 }
+            .filter { it.durationSeconds >= MIN_SESSION_TIME_FOR_STATS && (it.consistencyScore > 0 || it.avgBpm == 0) }
             .map { it.exerciseType }
             .distinct()
             .size
@@ -93,7 +92,7 @@ class AchievementRepository @Inject constructor(
         if (streakDays >= 30) if (unlockIfLocked(AchievementType.MONTH_STREAK)) newlyUnlocked.add(AchievementType.MONTH_STREAK)
 
         val validTimeSessions = allSessions.filter {
-            it.durationSeconds >= MIN_SESSION_TIME_FOR_STATS && it.consistencyScore > 0
+            it.durationSeconds >= MIN_SESSION_TIME_FOR_STATS && (it.consistencyScore > 0 || it.avgBpm == 0)
         }
 
         val earlyBirdDays = countDistinctDaysInTimeRange(validTimeSessions, 5, 8)
@@ -111,15 +110,23 @@ class AchievementRepository @Inject constructor(
         return newlyUnlocked
     }
 
-    suspend fun checkGoalAchievements(): List<AchievementType> {
+    suspend fun checkGoalAchievements(isWeeklyGoalMet: Boolean): List<AchievementType> {
         val newlyUnlocked = mutableListOf<AchievementType>()
-        val achievement = achievementDao.getAchievementById(AchievementType.GOAL_GETTER.id)
-        val currentProgress = achievement?.progress ?: 0
 
-        if (currentProgress == 0) {
-            achievementDao.updateProgress(AchievementType.GOAL_GETTER.id, 100)
+        if (isWeeklyGoalMet) {
+            updateProgress(AchievementType.GOAL_GETTER, 100)
             if (unlockIfLocked(AchievementType.GOAL_GETTER)) {
                 newlyUnlocked.add(AchievementType.GOAL_GETTER)
+            }
+
+            val currentCrusher = achievementDao.getAchievementById(AchievementType.GOAL_CRUSHER.id)?.progress ?: 0
+            if (currentCrusher < 100) {
+                updateProgress(AchievementType.GOAL_CRUSHER, currentCrusher + 10)
+            }
+            if (currentCrusher + 10 >= 100) {
+                if (unlockIfLocked(AchievementType.GOAL_CRUSHER)) {
+                    newlyUnlocked.add(AchievementType.GOAL_CRUSHER)
+                }
             }
         }
         return newlyUnlocked
@@ -163,7 +170,7 @@ class AchievementRepository @Inject constructor(
 
         val validDayKeys = sessionsByDay.filter { (_, daySessions) ->
             val validDuration = daySessions
-                .filter { it.consistencyScore > 0 }
+                .filter { it.consistencyScore > 0 || it.avgBpm == 0 }
                 .sumOf { it.durationSeconds }
 
             validDuration >= MIN_DAILY_TIME_FOR_STREAK
@@ -194,6 +201,10 @@ class AchievementRepository @Inject constructor(
             }
         }
         return streak
+    }
+
+    suspend fun getAchievementProgress(type: AchievementType): Int {
+        return achievementDao.getAchievementById(type.id)?.progress ?: 0
     }
 
     fun observeCurrentStreak(): Flow<Int> {

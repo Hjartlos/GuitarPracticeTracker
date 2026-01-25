@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.io.RandomAccessFile
-import kotlin.math.sqrt
+import kotlin.math.*
 
 class AudioEngine {
 
@@ -86,18 +86,25 @@ class AudioEngine {
             )
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e("AudioEngine", "AudioRecord failed to initialize. Trying MIC fallback.")
-                audioRecord = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    SAMPLE_RATE,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    audioBufferSize
-                )
+                Log.e("AudioEngine", "AudioRecord failed to initialize with source $audioSource. Trying MIC fallback.")
+                try {
+                    audioRecord?.release()
+                    audioRecord = AudioRecord(
+                        MediaRecorder.AudioSource.MIC,
+                        SAMPLE_RATE,
+                        AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                        audioBufferSize
+                    )
+                } catch (e: Exception) {
+                    Log.e("AudioEngine", "MIC fallback failed: ${e.message}")
+                }
             }
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e("AudioEngine", "AudioRecord MIC fallback failed.")
+                Log.e("AudioEngine", "AudioRecord initialization completely failed.")
+                audioRecord?.release()
+                audioRecord = null
                 return
             }
 
@@ -110,6 +117,12 @@ class AudioEngine {
         val format = TarsosDSPAudioFormat(SAMPLE_RATE.toFloat(), 16, 1, true, false)
         val audioStream = AndroidAudioInputStream(audioRecord!!, format)
         dispatcher = AudioDispatcher(audioStream, BUFFER_SIZE, OVERLAP)
+
+        val highPassFilter = HighPassFilter(cutoffFreq = 30f)
+        dispatcher?.addAudioProcessor(highPassFilter)
+
+        val noiseGate = NoiseGateProcessor(currentThreshold)
+        dispatcher?.addAudioProcessor(noiseGate)
 
         monitoringProcessor = MonitoringProcessor()
         dispatcher?.addAudioProcessor(monitoringProcessor)
@@ -219,6 +232,91 @@ class AudioEngine {
             sum += sample * sample
         }
         return sqrt(sum / floatBuffer.size).toFloat()
+    }
+
+    /**
+     * High-pass filter to remove low-frequency rumble and handling noise
+     * Helps with cheap phone mics that pick up hand/body movement
+     */
+    private inner class HighPassFilter(
+        private val cutoffFreq: Float = 80f
+    ) : AudioProcessor {
+        private var x1 = 0f
+        private var x2 = 0f
+        private var y1 = 0f
+        private var y2 = 0f
+
+        private val omega = 2f * PI.toFloat() * cutoffFreq / SAMPLE_RATE
+        private val sn = sin(omega)
+        private val cs = cos(omega)
+        private val alpha = sn / (2f * 0.707f)
+
+        private val b0 = (1f + cs) / 2f
+        private val b1 = -(1f + cs)
+        private val b2 = (1f + cs) / 2f
+        private val a0 = 1f + alpha
+        private val a1 = -2f * cs
+        private val a2 = 1f - alpha
+
+        override fun process(audioEvent: AudioEvent): Boolean {
+            val buffer = audioEvent.floatBuffer
+
+            for (i in buffer.indices) {
+                val x0 = buffer[i]
+                val y0 = (b0/a0)*x0 + (b1/a0)*x1 + (b2/a0)*x2 - (a1/a0)*y1 - (a2/a0)*y2
+
+                x2 = x1
+                x1 = x0
+                y2 = y1
+                y1 = y0
+
+                buffer[i] = y0
+            }
+            return true
+        }
+
+        override fun processingFinished() {}
+    }
+
+    /**
+     * Noise gate with smooth envelope following
+     * Reduces background noise and pick scratches
+     */
+    private inner class NoiseGateProcessor(
+        private var threshold: Float,
+        private val attackTime: Float = 0.001f,
+        private val releaseTime: Float = 0.05f
+    ) : AudioProcessor {
+        private var envelopeGain = 0f
+
+        fun updateThreshold(newThreshold: Float) {
+            threshold = newThreshold
+        }
+
+        override fun process(audioEvent: AudioEvent): Boolean {
+            val buffer = audioEvent.floatBuffer
+            val attackCoeff = 1f - exp(-1f / (SAMPLE_RATE * attackTime))
+            val releaseCoeff = 1f - exp(-1f / (SAMPLE_RATE * releaseTime))
+
+            for (i in buffer.indices) {
+                val sample = abs(buffer[i])
+
+                envelopeGain = if (sample > envelopeGain) {
+                    envelopeGain + attackCoeff * (sample - envelopeGain)
+                } else {
+                    envelopeGain + releaseCoeff * (sample - envelopeGain)
+                }
+
+                buffer[i] = if (envelopeGain > threshold) {
+                    buffer[i]
+                } else {
+                    buffer[i] * (envelopeGain / threshold).coerceIn(0f, 1f)
+                }
+            }
+            return true
+        }
+
+        override fun processingFinished() {}
     }
 
     private inner class MonitoringProcessor : AudioProcessor {

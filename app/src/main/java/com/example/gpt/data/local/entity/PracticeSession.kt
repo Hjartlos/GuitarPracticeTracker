@@ -14,5 +14,6 @@ data class PracticeSession(
     val avgBpm: Int = 0,
     val consistencyScore: Int = 0,
     val timeSignature: String = "4/4",
-    val audioPath: String? = null
+    val audioPath: String? = null,
+    val rhythmMargin: Float = 0.30f
 )

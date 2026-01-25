@@ -140,8 +140,6 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
             SettingsSectionTitle(stringResource(R.string.practice_section))
             SettingsCard {
                 SettingRow(
@@ -150,7 +148,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.hours_per_week_fmt, weeklyGoal)
                 ) {
                     IconButton(onClick = { showGoalDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit Goal", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.cd_edit_goal), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -167,7 +165,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.tuning_desc_fmt, baseFreq, notationText)
                 ) {
                     IconButton(onClick = { showTuningDialog = true }) {
-                        Icon(Icons.Default.Tune, contentDescription = "Tune Standards", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.cd_tune_standards), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -179,7 +177,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.audio_calib_subtitle_fmt, latency)
                 ) {
                     IconButton(onClick = { showCalibrationDialog = true }) {
-                        Icon(Icons.Default.Equalizer, contentDescription = "Calibrate Audio", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Equalizer, contentDescription = stringResource(R.string.cd_calibrate_audio), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -206,13 +204,18 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                                         putExtra(Intent.EXTRA_STREAM, uri)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
-                                    context.startActivity(Intent.createChooser(intent, "Share CSV"))
+                                    context.startActivity(
+                                        Intent.createChooser(
+                                            intent,
+                                            context.getString(R.string.share_csv_title)
+                                        )
+                                    )
                                 } catch (e: Exception) { e.printStackTrace() }
                             }
-                        }) { Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.primary) }
+                        }) { Icon(Icons.Default.Share, contentDescription = stringResource(R.string.cd_share), tint = MaterialTheme.colorScheme.primary) }
 
                         IconButton(onClick = { saveFileLauncher.launch("guitar_practice_${System.currentTimeMillis()}.csv") }) {
-                            Icon(Icons.Default.Save, contentDescription = "Save", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.Save, contentDescription = stringResource(R.string.cd_save), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -225,7 +228,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.import_desc)
                 ) {
                     IconButton(onClick = { importFileLauncher.launch("text/*") }) {
-                        Icon(Icons.Default.FileOpen, contentDescription = "Import", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.FileOpen, contentDescription = stringResource(R.string.cd_import), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -279,7 +282,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = displayLanguage
                 ) {
                     IconButton(onClick = { showLanguageDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Change Language", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.cd_change_language), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -291,7 +294,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.show_tutorial_desc)
                 ) {
                     IconButton(onClick = { showTutorialDialog = true }) {
-                        Icon(Icons.Default.School, contentDescription = "Tutorial", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.School, contentDescription = stringResource(R.string.cd_tutorial), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -303,7 +306,7 @@ fun SettingsScreen(viewModel: PracticeViewModel) {
                     subtitle = stringResource(R.string.about_desc)
                 ) {
                     IconButton(onClick = { showAboutDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "About", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = stringResource(R.string.cd_about), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -464,7 +467,6 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
     val metronomeOffset by viewModel.metronomeOffset.collectAsState()
     val isTestRunning by viewModel.isTestMetronomeRunning.collectAsState()
 
-    val isLatencyTesting by viewModel.isLatencyTesting.collectAsState()
     val latencyResult by viewModel.latencyTestResult.collectAsState()
     val isTapCalibrating by viewModel.isTapCalibrating.collectAsState()
     val tapProgress by viewModel.tapCalibrationProgress.collectAsState()
@@ -486,6 +488,9 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
             viewModel.stopMonitoring()
             viewModel.stopSyncTest()
             viewModel.stopTestMetronome()
+            if (viewModel.isTapCalibrating.value) {
+                viewModel.cancelTapCalibration()
+            }
         }
     }
 
@@ -523,7 +528,7 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     ) {
                         Icon(
                             imageVector = if(isMonitoring) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                            contentDescription = "Monitor",
+                            contentDescription = stringResource(R.string.monitor_audio),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -614,7 +619,6 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                     valueRange = 0f..1f,
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
-                Text(text = stringResource(R.string.mic_sensitivity_expl), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
 
@@ -639,12 +643,16 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                repeat(5) { index ->
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                repeat(16) { index ->
                                     val isActive = tapBeat >= index + 1
                                     Box(
                                         modifier = Modifier
-                                            .size(16.dp)
+                                            .size(if (index % 4 == 0) 10.dp else 6.dp)
                                             .clip(CircleShape)
                                             .background(
                                                 if (isActive) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onPrimary.copy(alpha=0.3f)
@@ -654,21 +662,33 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                             }
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = stringResource(R.string.calibration_hold_near),
+                                text = stringResource(R.string.tap_calib_instructions),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha=0.8f),
                                 textAlign = TextAlign.Center
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { viewModel.cancelTapCalibration() },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary)
+                            ) {
+                                Text(stringResource(R.string.cancel), fontSize = 12.sp)
+                            }
                         }
                     }
                 } else {
                     Button(
-                        onClick = { viewModel.runLatencyAutoCalibration() },
+                        onClick = { viewModel.startTapCalibration() },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        enabled = !isLatencyTesting,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = Color.Black)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = Color.Black
+                        )
                     ) {
-                        Text(if (isLatencyTesting) stringResource(R.string.calibrating) else stringResource(R.string.auto_calibrate_btn))
+                        Text(stringResource(R.string.tap_calibrate_btn), fontSize = 13.sp)
                     }
                 }
 
@@ -685,10 +705,9 @@ fun CalibrationDialog(viewModel: PracticeViewModel, onDismiss: () -> Unit) {
                 Slider(
                     value = latencyOffset.toFloat(),
                     onValueChange = { viewModel.setLatencyOffset(it.toInt()) },
-                    valueRange = 0f..300f,
+                    valueRange = 0f..400f,
                     colors = SliderDefaults.colors(thumbColor = MaterialTheme.colorScheme.primary, activeTrackColor = MaterialTheme.colorScheme.primary)
                 )
-                Text(text = stringResource(R.string.latency_expl), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.1f))
 
