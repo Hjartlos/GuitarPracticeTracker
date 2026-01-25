@@ -9,14 +9,14 @@ plugins {
 
 android {
     namespace = "com.example.gpt"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "pl.hjartlos.gpt"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 8
-        versionName = "1.8"
+        targetSdk = 36
+        versionCode = 10
+        versionName = "1.10"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
