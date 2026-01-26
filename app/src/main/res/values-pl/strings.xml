@@ -286,4 +286,5 @@
     <string name="cd_monitor">Nasłuchuj dźwięku</string>
     <string name="share_csv_title">Udostępnij plik CSV</string>
     <string name="accuracy_label">Dokł: %1$d%%</string>
+    <string name="play_label">Graj!</string>
 </resources>

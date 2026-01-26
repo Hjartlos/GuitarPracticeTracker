@@ -638,46 +638,19 @@ fun InteractiveMetronomeDisplay(
     bpm: Int,
     onBeatClick: (Int) -> Unit
 ) {
-    val safeAnimDuration = if (bpm > 0) min(100, (60000 / bpm) / 2) else 100
     val beatCount = beatPattern.size
 
     if (beatCount == 0) return
 
     val sweepAngle = 360f / beatCount
-
     val gapAngle = if (beatCount < 8) 7f else 8f
     val effectiveSweepAngle = (sweepAngle - gapAngle).coerceAtLeast(5f)
-
     val circleSize = 180.dp
-
     val strokeWidth = 24f
 
     val accentColor = MaterialTheme.colorScheme.primary
     val normalColor = MaterialTheme.colorScheme.secondary
     val muteColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.3f)
-
-    val animatedColors = beatPattern.mapIndexed { index, type ->
-        val isPlayingNow = (index + 1) == currentPlayingBeat
-        val baseColor = when(type) {
-            BeatType.ACCENT -> accentColor
-            BeatType.NORMAL -> normalColor
-            BeatType.MUTE -> muteColor
-        }
-        animateColorAsState(
-            targetValue = if(isPlayingNow) Color.White else baseColor,
-            animationSpec = tween(durationMillis = safeAnimDuration),
-            label = "beatColor$index"
-        ).value
-    }
-
-    val animatedStrokeWidths = beatPattern.mapIndexed { index, _ ->
-        val isPlayingNow = (index + 1) == currentPlayingBeat
-        animateFloatAsState(
-            targetValue = if(isPlayingNow) strokeWidth * 1.4f else strokeWidth,
-            animationSpec = tween(durationMillis = safeAnimDuration),
-            label = "strokeWidth$index"
-        ).value
-    }
 
     Box(
         modifier = Modifier
@@ -711,18 +684,28 @@ fun InteractiveMetronomeDisplay(
             val radius = (size.minDimension - ringStrokeWidth) / 2f
             val center = Offset(size.width / 2f, size.height / 2f)
 
-            beatPattern.forEachIndexed { index, _ ->
+            beatPattern.forEachIndexed { index, type ->
                 val startAngle = -90f + (index * sweepAngle) + (gapAngle / 2f)
+                val isPlayingNow = (index + 1) == currentPlayingBeat
+
+                val baseColor = when(type) {
+                    BeatType.ACCENT -> accentColor
+                    BeatType.NORMAL -> normalColor
+                    BeatType.MUTE -> muteColor
+                }
+
+                val color = if(isPlayingNow) Color.White else baseColor
+                val currentStrokeWidth = if(isPlayingNow) strokeWidth * 1.3f else strokeWidth
 
                 drawArc(
-                    color = animatedColors[index],
+                    color = color,
                     startAngle = startAngle,
                     sweepAngle = effectiveSweepAngle,
                     useCenter = false,
                     topLeft = Offset(center.x - radius, center.y - radius),
                     size = Size(radius * 2, radius * 2),
                     style = Stroke(
-                        width = animatedStrokeWidths[index],
+                        width = currentStrokeWidth,
                         cap = StrokeCap.Round
                     )
                 )

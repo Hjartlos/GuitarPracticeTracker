@@ -53,7 +53,8 @@ class RhythmAnalyzer {
         if (!audioFile.exists() || audioFile.length() < 1000) return@withContext AnalysisResult(0, 0)
 
         val rawOnsets = mutableListOf<Pair<Double, Double>>()
-        val latencySec = latencyMs / 1000.0
+
+        val latencySec = (latencyMs * 0.25) / 1000.0
 
         try {
             val format = TarsosDSPAudioFormat(SAMPLE_RATE, 16, 1, true, false)
@@ -115,16 +116,24 @@ class RhythmAnalyzer {
             )
         }
 
+        val quarterDuration = 60.0 / targetBpm
+
+        val systematicError = calculateSystematicError(cleanOnsets, quarterDuration)
+
+        val finalOnsets = if (abs(systematicError) > 0.010) {
+            cleanOnsets.map { (it - systematicError).coerceAtLeast(0.0) }
+        } else {
+            cleanOnsets
+        }
+
         val detailedHits = mutableListOf<RhythmHit>()
         var hitsOnBeat = 0
-
-        val quarterDuration = 60.0 / targetBpm
 
         val strictWindowMs = 35.0
         val looseWindowMs = 35.0 + (80.0 * errorMargin)
         val ghostNoteThresholdMs = (quarterDuration / 4.0 * 1000.0) * 0.9
 
-        for (onset in cleanOnsets) {
+        for (onset in finalOnsets) {
             val rawBeatIndex = onset / quarterDuration
             val nearestQuarter = round(rawBeatIndex).toInt()
             val positionInBeat = rawBeatIndex - nearestQuarter
@@ -212,6 +221,26 @@ class RhythmAnalyzer {
         )
     }
 
+    private fun calculateSystematicError(onsets: List<Double>, beatDuration: Double): Double {
+        if (onsets.isEmpty()) return 0.0
+
+        var totalDeviation = 0.0
+        var count = 0
+
+        for (onset in onsets) {
+            val rawIndex = onset / beatDuration
+            val nearest = round(rawIndex)
+            val diff = onset - (nearest * beatDuration)
+
+            if (abs(diff) < beatDuration * 0.4) {
+                totalDeviation += diff
+                count++
+            }
+        }
+
+        return if (count > 0) totalDeviation / count else 0.0
+    }
+
     private fun separateGuitarFromMetronome(
         onsets: List<Pair<Double, Double>>,
         metronomeClicks: List<Double>,
@@ -237,14 +266,14 @@ class RhythmAnalyzer {
             val distanceToClick = nearestClick?.let { abs(onset.first - it) } ?: Double.MAX_VALUE
             when {
                 distanceToClick > 0.12 -> guitarOnsets.add(onset)
-                distanceToClick < 0.05 -> {
+                distanceToClick < 0.06 -> {
                     val amplitudeRatio = onset.second / baselineMetronomeAmplitude
-                    if (amplitudeRatio > 1.10 || onset.second > maxSalience * 0.25) {
+                    if (amplitudeRatio > 0.90 || onset.second > maxSalience * 0.25) {
                         guitarOnsets.add(onset)
                     }
                 }
                 else -> {
-                    if (onset.second > baselineMetronomeAmplitude * 0.9) {
+                    if (onset.second > baselineMetronomeAmplitude * 0.8) {
                         guitarOnsets.add(onset)
                     }
                 }

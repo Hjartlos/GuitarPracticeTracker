@@ -286,5 +286,5 @@
     <string name="cd_monitor">Monitor audio</string>
     <string name="share_csv_title">Share CSV</string>
     <string name="accuracy_label">Acc: %1$d%%</string>
-
+    <string name="play_label">Play!</string>
 </resources>

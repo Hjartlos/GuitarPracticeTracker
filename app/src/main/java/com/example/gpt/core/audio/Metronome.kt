@@ -3,6 +3,7 @@ package com.example.gpt.core.audio
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Build
 import kotlinx.coroutines.*
 import java.util.Arrays
 
@@ -69,7 +70,9 @@ class Metronome {
             AudioFormat.ENCODING_PCM_16BIT
         )
 
-        audioTrack = AudioTrack.Builder()
+        val bufferSize = if (minBufferSize > 0) minBufferSize else SAMPLE_RATE / 10
+
+        val builder = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -84,9 +87,13 @@ class Metronome {
                     .build()
             )
             .setTransferMode(AudioTrack.MODE_STREAM)
-            .setBufferSizeInBytes(minBufferSize)
-            .build()
+            .setBufferSizeInBytes(bufferSize)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+        }
+
+        audioTrack = builder.build()
         audioTrack?.play()
 
         metronomeJob = metronomeScope.launch(Dispatchers.Default) {

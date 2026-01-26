@@ -15,9 +15,15 @@ import be.tarsos.dsp.io.TarsosDSPAudioFormat
 import be.tarsos.dsp.io.TarsosDSPAudioInputStream
 import be.tarsos.dsp.pitch.PitchDetectionHandler
 import be.tarsos.dsp.pitch.PitchProcessor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.math.*
@@ -37,6 +43,9 @@ class AudioEngine {
     private val _amplitude = MutableStateFlow(0f)
     val amplitude: StateFlow<Float> = _amplitude.asStateFlow()
 
+    private val _tapEvent = MutableSharedFlow<Long>(extraBufferCapacity = 64)
+    val tapEvent: SharedFlow<Long> = _tapEvent.asSharedFlow()
+
     private val pitchHistory = mutableListOf<Float>()
     private val centsHistory = mutableListOf<Int>()
 
@@ -54,6 +63,10 @@ class AudioEngine {
     @Volatile
     var isMonitoringEnabled: Boolean = false
     private var monitoringProcessor: MonitoringProcessor? = null
+
+    private var tapDetectionProcessor: TapDetectionProcessor? = null
+
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     @SuppressLint("MissingPermission")
     fun start(outputFile: File? = null) {
@@ -86,7 +99,6 @@ class AudioEngine {
             )
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e("AudioEngine", "AudioRecord failed to initialize with source $audioSource. Trying MIC fallback.")
                 try {
                     audioRecord?.release()
                     audioRecord = AudioRecord(
@@ -102,7 +114,6 @@ class AudioEngine {
             }
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e("AudioEngine", "AudioRecord initialization completely failed.")
                 audioRecord?.release()
                 audioRecord = null
                 return
@@ -110,7 +121,6 @@ class AudioEngine {
 
             audioRecord?.startRecording()
         } catch (e: Exception) {
-            Log.e("AudioEngine", "Error starting mic: ${e.message}")
             return
         }
 
@@ -118,11 +128,11 @@ class AudioEngine {
         val audioStream = AndroidAudioInputStream(audioRecord!!, format)
         dispatcher = AudioDispatcher(audioStream, BUFFER_SIZE, OVERLAP)
 
-        val highPassFilter = HighPassFilter(cutoffFreq = 30f)
-        dispatcher?.addAudioProcessor(highPassFilter)
+        dispatcher?.addAudioProcessor(HighPassFilter(cutoffFreq = 30f))
+        dispatcher?.addAudioProcessor(NoiseGateProcessor(currentThreshold))
 
-        val noiseGate = NoiseGateProcessor(currentThreshold)
-        dispatcher?.addAudioProcessor(noiseGate)
+        tapDetectionProcessor = TapDetectionProcessor()
+        dispatcher?.addAudioProcessor(tapDetectionProcessor)
 
         monitoringProcessor = MonitoringProcessor()
         dispatcher?.addAudioProcessor(monitoringProcessor)
@@ -199,6 +209,7 @@ class AudioEngine {
 
         monitoringProcessor?.release()
         monitoringProcessor = null
+        tapDetectionProcessor = null
         isMonitoringEnabled = false
 
         dispatcher?.stop()
@@ -222,6 +233,10 @@ class AudioEngine {
         _amplitude.value = 0f
     }
 
+    fun setMinTimeBetweenTaps(ms: Long) {
+        tapDetectionProcessor?.updateMinTime(ms)
+    }
+
     fun toggleMonitoring(enabled: Boolean) {
         isMonitoringEnabled = enabled
     }
@@ -234,10 +249,34 @@ class AudioEngine {
         return sqrt(sum / floatBuffer.size).toFloat()
     }
 
-    /**
-     * High-pass filter to remove low-frequency rumble and handling noise
-     * Helps with cheap phone mics that pick up hand/body movement
-     */
+    private inner class TapDetectionProcessor : AudioProcessor {
+        private var lastTapTime = 0L
+        private var minTimeBetweenTaps = 50L
+
+        fun updateMinTime(ms: Long) {
+            minTimeBetweenTaps = ms
+        }
+
+        override fun process(audioEvent: AudioEvent): Boolean {
+            val buffer = audioEvent.floatBuffer
+            val rms = calculateRMS(buffer)
+            val tapThreshold = currentThreshold * 1.2f
+
+            if (rms > tapThreshold) {
+                val now = System.currentTimeMillis()
+                if (now - lastTapTime > minTimeBetweenTaps) {
+                    lastTapTime = now
+                    scope.launch {
+                        _tapEvent.emit(now)
+                    }
+                }
+            }
+            return true
+        }
+
+        override fun processingFinished() {}
+    }
+
     private inner class HighPassFilter(
         private val cutoffFreq: Float = 80f
     ) : AudioProcessor {
@@ -278,10 +317,6 @@ class AudioEngine {
         override fun processingFinished() {}
     }
 
-    /**
-     * Noise gate with smooth envelope following
-     * Reduces background noise and pick scratches
-     */
     private inner class NoiseGateProcessor(
         private var threshold: Float,
         private val attackTime: Float = 0.001f,
